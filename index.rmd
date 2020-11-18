@@ -40,8 +40,8 @@ allfiles <- list.files("data//isimip_ice", full.names = T)
 
 ## Take a look at a raster
 viewSample <- stack(allfiles[1])
-plot(viewSample[[100]])
-
+plot(viewSample[[1]])
 ```
 
-
+albm_gfdl-esm2m_historical_rcp26_iceend 1901 to 2099
+![](SamplePatterns.gif)

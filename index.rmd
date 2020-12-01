@@ -229,3 +229,50 @@ ggplot(iceOutmodels %>% filter(modelName != "lake_gfdl-esm2m"), aes(x=modelName,
 ## Change in time
 ggplot(iceOutmodels, aes(x=year, y=meanDeparture, color=modelName)) + geom_smooth(se=F)  + ylab("Mean Departure from Mean") + theme_Publication() + facet_grid(RCP~iceMeasure)
 ```
+
+### Compare map of where there is the least agreement in predictions
+```{r warning=FALSE, message=FALSE}
+iceOnFiles <- allfiles[grep("icestart", allfiles)]
+iceEndFiles <- allfiles[grep("iceend", allfiles)]
+
+### Create cluster
+cl <- makeCluster(4, type="PSOCK")
+clusterEvalQ(cl, { library(MASS); RNGkind("L'Ecuyer-CMRG") })
+registerDoParallel(cores = cl)
+
+## set colours for plot
+colors <- rev(colorspace::sequential_hcl(9, palette = "Dark Mint"))
+breakpoints <- seq(0,40, length.out = 9) ## Set breakpoints
+
+sdTimersies <- foreach(i = 1:199, .combine=stack, .packages=c("raster","ncdf4","dplyr")) %dopar% {
+## Load first year from all rasters for ice on
+
+firstStack <- stack(iceOnFiles, bands=i)
+
+## get model names
+GCMmodels <- iceOnFiles %>% gsub(".*_ice/", "", .) %>% gsub("_historical.*", "", .)
+RCPmodels <- iceOnFiles %>% gsub(".*historical_", "", .) %>% gsub("_icestart.*", "", .)
+
+## Calculate mean and error within a year for each model
+errorChange <- calc(firstStack, sd)
+
+
+png(paste("iceGif//SDmodel",i+1900,".png"))
+plot(errorChange, breaks=breakpoints, col=colors)
+text(140,100, paste(i+1900), cex=3) 
+dev.off()
+
+## Create DF with models are difference
+return(errorChange)
+}
+
+
+library(magick)
+list.files(path='iceGif', pattern = '*.png', full.names = TRUE) %>% 
+        image_read() %>% # reads each path file
+        image_join() %>% # joins image
+        image_animate(fps=10) %>% # animates, can opt for number of loops
+        image_write("IceChange.gif") # write to current di
+
+```
+

@@ -157,8 +157,24 @@ modelVariation <- data.frame(year = 1900+1, modelName= GCMmodels, RCP = RCPmodel
 
 ### Compare predictions iterated across every year
 ```{r eval=FALSE}
+
+
 iceOnFiles <- allfiles[grep("icestart", allfiles)]
 iceEndFiles <- allfiles[grep("iceend", allfiles)]
+
+## get model names
+allmodels <- iceOnFiles %>% gsub(".*_ice/", "", .) %>% gsub("_historical.*", "", .)
+GCMmodels <- gsub(".*_", "", allmodels)
+lakemodels <- gsub("_.*", "", allmodels)
+RCPmodels <- iceOnFiles %>% gsub(".*historical_", "", .) %>% gsub("_icestart.*", "", .)
+
+## Convert models to text
+models <- data.frame(lakemodel = lakemodels, GCM = GCMmodels, RCP = RCPmodels, filepath=iceOnFiles, stringsAsFactors = F)
+
+
+## Select one RCP to examine
+models85 <- subset(models, RCP=="rcp85")
+
 
 ### Create cluster
 cl <- makeCluster(4, type="PSOCK")
@@ -167,13 +183,14 @@ registerDoParallel(cores = cl)
 
 
 iceOnOut <- foreach(i = 1:199, .combine=rbind, .packages=c("raster","ncdf4","dplyr")) %dopar% {
+  foreach(j=1:4, .combine='c') %do% {
+
+## Select subset of models
+GMClist <- unique(models85$GCM)
+firstGMC <- subset(models85, GCM == GMClist[j])
+    
 ## Load first year from all rasters for ice on
-
-firstStack <- stack(iceOnFiles, bands=i)
-
-## get model names
-GCMmodels <- iceOnFiles %>% gsub(".*_ice/", "", .) %>% gsub("_historical.*", "", .)
-RCPmodels <- iceOnFiles %>% gsub(".*historical_", "", .) %>% gsub("_icestart.*", "", .)
+firstStack <- stack(firstGMC, bands=i)
 
 ## Calculate mean and error within a year for each model
 meanChange <- calc(firstStack, mean) 
@@ -232,47 +249,74 @@ ggplot(iceOutmodels, aes(x=year, y=meanDeparture, color=modelName)) + geom_smoot
 
 ### Compare map of where there is the least agreement in predictions
 ```{r warning=FALSE, message=FALSE}
+## Load library for joining images
+library(magick)
+
 iceOnFiles <- allfiles[grep("icestart", allfiles)]
 iceEndFiles <- allfiles[grep("iceend", allfiles)]
+
+## get model names
+allmodels <- iceOnFiles %>% gsub(".*_ice/", "", .) %>% gsub("_historical.*", "", .)
+GCMmodels <- gsub(".*_", "", allmodels)
+lakemodels <- gsub("_.*", "", allmodels)
+RCPmodels <- iceOnFiles %>% gsub(".*historical_", "", .) %>% gsub("_icestart.*", "", .)
+
+## Convert models to text
+models <- data.frame(lakemodel = lakemodels, GCM = GCMmodels, RCP = RCPmodels, filepath=iceOnFiles, stringsAsFactors = F)
+
+## Select one RCP to examine
+models85 <- subset(models, RCP=="rcp85")
+
+## different models
+GMClist <- unique(models85$GCM)
+lakelist <- unique(models85$lakemodel)
 
 ### Create cluster
 cl <- makeCluster(4, type="PSOCK")
 clusterEvalQ(cl, { library(MASS); RNGkind("L'Ecuyer-CMRG") })
 registerDoParallel(cores = cl)
 
+
 ## set colours for plot
-colors <- rev(colorspace::sequential_hcl(9, palette = "Dark Mint"))
-breakpoints <- seq(0,40, length.out = 9) ## Set breakpoints
+colors <- rev(colorspace::sequential_hcl(11, palette = "Dark Mint"))
+breakpoints <- seq(0,100, length.out = 11) ## Set breakpoints
 
-sdTimersies <- foreach(i = 1:199, .combine=stack, .packages=c("raster","ncdf4","dplyr")) %dopar% {
+sdTimersies <- foreach(i = 1:199, .combine=stack, .packages=c("raster","ncdf4","dplyr","doParallel")) %dopar% {
+  foreach(j = 1:4) %do%{
+
+
+## Select subset of models
+firstGMC <- subset(models85, lakemodel == lakelist[j])
+    
 ## Load first year from all rasters for ice on
-
-firstStack <- stack(iceOnFiles, bands=i)
-
-## get model names
-GCMmodels <- iceOnFiles %>% gsub(".*_ice/", "", .) %>% gsub("_historical.*", "", .)
-RCPmodels <- iceOnFiles %>% gsub(".*historical_", "", .) %>% gsub("_icestart.*", "", .)
+firstStack <- stack(firstGMC$filepath, bands=i)
 
 ## Calculate mean and error within a year for each model
 errorChange <- calc(firstStack, sd)
 
 
-png(paste("iceGif//SDmodel",i+1900,".png"))
+png(paste("lakegif//SDmodel",lakelist[j],i+1900,".png"))
 plot(errorChange, breaks=breakpoints, col=colors)
 text(140,100, paste(i+1900), cex=3) 
 dev.off()
 
 ## Create DF with models are difference
 return(errorChange)
+  }
 }
 
+stopCluster(cl) 
 
-library(magick)
-list.files(path='iceGif', pattern = '*.png', full.names = TRUE) %>% 
+
+
+for(i in 1:4){
+list.files(path='lakegif', pattern = paste0(lakelist[i]), full.names = TRUE) %>% 
         image_read() %>% # reads each path file
         image_join() %>% # joins image
         image_animate(fps=10) %>% # animates, can opt for number of loops
-        image_write("IceChange.gif") # write to current di
+        image_write(paste0("animatedGIFs//",lakelist[i],".gif")) # write to current dir
+print(i)
+}
 
 ```
 

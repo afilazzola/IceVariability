@@ -320,3 +320,141 @@ print(i)
 
 ```
 
+### Check change in latitudinal distance of observations
+```{r}
+
+iceOnFiles <- allfiles[grep("icestart", allfiles)]
+iceEndFiles <- allfiles[grep("iceend", allfiles)]
+
+## get model names
+allmodels <- iceOnFiles %>% gsub(".*_ice/", "", .) %>% gsub("_historical.*", "", .)
+GCMmodels <- gsub(".*_", "", allmodels)
+lakemodels <- gsub("_.*", "", allmodels)
+RCPmodels <- iceOnFiles %>% gsub(".*historical_", "", .) %>% gsub("_icestart.*", "", .)
+
+## Convert models to text
+models <- data.frame(lakemodel = lakemodels, GCM = GCMmodels, RCP = RCPmodels, filepath=iceOnFiles, stringsAsFactors = F)
+
+
+## Select one RCP to examine
+models85 <- subset(models, RCP=="rcp85")
+
+
+### Create cluster
+cl <- makeCluster(4, type="PSOCK")
+clusterEvalQ(cl, { library(MASS); RNGkind("L'Ecuyer-CMRG") })
+registerDoParallel(cores = cl)
+
+
+iceStartLat <- foreach(i = 1:199, .combine=rbind, .packages=c("raster","ncdf4","dplyr","doParallel")) %dopar% {
+  foreach(j=1:nrow(models), .combine=rbind) %do% {
+
+## Select subset of models
+iterModel <- subset(models, filepath == models$filepath[j])
+    
+## Load first year from all rasters for ice on
+iterRaster <- raster(iterModel[,"filepath"], band=i)
+
+## Convert raster to points to extract latitude
+iterPoints <- rasterToPoints(iterRaster, fun = function(x) x>0, spatial=T)
+meanLat <- mean(coordinates(iterPoints)[,2]) 
+minLat <- min(coordinates(iterPoints)[,2]) 
+
+dataOut <- data.frame(lakemodel = models[j,"lakemodel"], GCM = models[j,"GCM"], RCP = models[j,"RCP"],
+                      Year = 1900+i, MeanLatitude = meanLat, MinimumLatitude=minLat)
+return(dataOut)
+  }
+}
+
+iceStartLat85 <- iceStartLat %>% filter(RCP=="rcp85")
+
+ggplot(iceStartLat85, aes(x=Year, y=MeanLatitude)) + facet_grid(lakemodel~GCM, scales="free_y") + geom_line() + theme_Publication() + ylab("Mean latitude of pixels with lake ice (°)")
+
+```
+
+### Create models with difference 
+```{r}
+iceOnFiles <- allfiles[grep("icestart", allfiles)]
+iceEndFiles <- allfiles[grep("iceend", allfiles)]
+
+## get model names
+allmodels <- iceOnFiles %>% gsub(".*_ice/", "", .) %>% gsub("_historical.*", "", .)
+GCMmodels <- gsub(".*_", "", allmodels)
+lakemodels <- gsub("_.*", "", allmodels)
+RCPmodels <- iceOnFiles %>% gsub(".*historical_", "", .) %>% gsub("_icestart.*", "", .)
+
+## Convert models to text
+models <- data.frame(lakemodel = lakemodels, GCM = GCMmodels, RCP = RCPmodels, filepath=iceOnFiles, stringsAsFactors = F)
+
+
+### Run through all ice on models
+
+iceStartLat <- foreach(j = 1:nrow(models), .combine=rbind, .packages=c("raster","ncdf4","dplyr","doParallel")) %do% {
+
+  ## Select subset of models
+iterModel <- subset(models, filepath == models$filepath[j])
+    
+## Select time periods
+iterCurrent <- stack(iterModel[,"filepath"], bands=70:99)
+iterFuture <- stack(iterModel[,"filepath"], bands=170:199)
+
+## Calculate means
+meanCurrent <- mean(iterCurrent)
+meanFuture <- mean(iterFuture)
+
+## Determine difference
+diffFuture <- (meanFuture-meanCurrent)
+
+newName <- basename(iterModel[,"filepath"]) %>% gsub("_1901_2099", "", .)%>% gsub("historical_", "", .)
+writeRaster(diffFuture, paste0("data//diffRasters//diff_",newName))
+}
+
+
+## get model names
+allmodels <- iceEndFiles %>% gsub(".*_ice/", "", .) %>% gsub("_historical.*", "", .)
+GCMmodels <- gsub(".*_", "", allmodels)
+lakemodels <- gsub("_.*", "", allmodels)
+RCPmodels <- iceEndFiles %>% gsub(".*historical_", "", .) %>% gsub("_icestart.*", "", .)
+
+## Convert models to text
+models <- data.frame(lakemodel = lakemodels, GCM = GCMmodels, RCP = RCPmodels, filepath=iceEndFiles, stringsAsFactors = F)
+
+
+### Run through all ice end models
+
+iceStartLat <- foreach(j = 1:nrow(models), .combine=rbind, .packages=c("raster","ncdf4","dplyr","doParallel")) %do% {
+
+  ## Select subset of models
+iterModel <- subset(models, filepath == models$filepath[j])
+    
+## Select time periods
+iterCurrent <- stack(iterModel[,"filepath"], bands=70:99)
+iterFuture <- stack(iterModel[,"filepath"], bands=170:199)
+
+## Calculate means
+meanCurrent <- mean(iterCurrent)
+meanFuture <- mean(iterFuture)
+
+## Determine difference
+diffFuture <- (meanFuture-meanCurrent)
+
+newName <- basename(iterModel[,"filepath"]) %>% gsub("_1901_2099", "", .)%>% gsub("historical_", "", .)
+writeRaster(diffFuture, paste0("data//diffRasters//diff_",newName))
+}
+```
+
+### Plot general anomalies between time periods
+```{r}
+iceOndiff <- list.files("data//diffRasters", full.names = T)
+
+## Select ice start only
+iceOnAno <- iceOndiff[grep( "icestart",iceOndiff)] 
+iceOnAno95 <- iceOnAno[grep("rcp85",iceOnAno)]
+
+## get model names
+allmodels <- iceOnAno95  %>% basename() %>% gsub("diff_", "", .) %>%  gsub(".*_ice/", "", .) 
+lakemodels <- gsub("_.*", "", allmodels)
+
+allDiff <- stack(iceOnAno95[-9])
+plot(mean(allDiff))
+```

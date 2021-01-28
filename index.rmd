@@ -449,12 +449,59 @@ iceOndiff <- list.files("data//diffRasters", full.names = T)
 
 ## Select ice start only
 iceOnAno <- iceOndiff[grep( "icestart",iceOndiff)] 
-iceOnAno95 <- iceOnAno[grep("rcp85",iceOnAno)]
+iceOnAno95 <- iceOnAno[grep("rcp26",iceOnAno)]
 
 ## get model names
 allmodels <- iceOnAno95  %>% basename() %>% gsub("diff_", "", .) %>%  gsub(".*_ice/", "", .) 
 lakemodels <- gsub("_.*", "", allmodels)
 
+## select models and take average difference 
 allDiff <- stack(iceOnAno95[-9])
-plot(mean(allDiff))
+modelDiff <- mean(allDiff)
+
+## Convert the dataframe to plot properly 
+modelDiffDF <- as(modelDiff, "SpatialPixelsDataFrame")
+modelDiffDF <- as.data.frame(modelDiffDF)
+colnames(modelDiffDF) <- c("value", "x", "y")
+
+
+world <- map_data("world")
+ggplot() +  geom_map(data=world, map = world, aes(long, lat, map_id = region), fill = "darkgray") +theme_Publication() +
+  geom_tile(data= modelDiffDF , aes(x=x, y=y, fill=value)) +
+  scale_fill_gradient2(  low = "yellow", mid = "orange", high="red", midpoint = 15) + 
+  xlab("Longitude") + ylab("Latitude")+ 
+  theme(legend.position = c(0.1, 0.3),legend.direction = "vertical", legend.title = element_blank(),legend.key.height = unit(0.5,"cm")) +
+  xlim(-180,180) + ylim(-90,90)
+
+
+### Ice off
+## Select ice start only
+iceEndAno <- iceOndiff[grep( "iceend",iceOndiff)] 
+iceEndAno95 <- iceEndAno[grep("rcp85",iceEndAno)]
+
+## get model names
+allmodels <- iceEndAno95  %>% basename() %>% gsub("diff_", "", .) %>%  gsub(".*_ice/", "", .) 
+lakemodels <- gsub("_.*", "", allmodels)
+
+## select models and take average difference 
+allDiff <- stack(iceEndAno95[-8])
+modelDiff <- mean(allDiff)
+
+## Convert the dataframe to plot properly 
+modelDiffDF <- as(modelDiff, "SpatialPixelsDataFrame")
+modelDiffDF <- as.data.frame(modelDiffDF)
+colnames(modelDiffDF) <- c("value", "x", "y")
+
+
+
+world <- map_data("world")
+ggplot() +  geom_map(data=world, map = world, aes(long, lat, map_id = region), fill = "darkgray") +theme_Publication() +
+  geom_tile(data= modelDiffDF , aes(x=x, y=y, fill=value)) +
+  scale_fill_gradient2(  low = "red", mid = "orange", high="yellow", midpoint = -15) + 
+  xlab("Longitude") + ylab("Latitude")+ 
+  theme(legend.position = c(0.1, 0.3),legend.direction = "vertical", legend.title = element_blank(),legend.key.height = unit(0.5,"cm")) +
+  xlim(-180,180) + ylim(-90,90)
+
+
+
 ```

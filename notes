@@ -1,0 +1,52 @@
+### Notes
+
+
+Compare variability. Mean change in temperature (30 yr average) vs. sum absolute difference in ice-on date
+
+
+Test for heteroskedasticity - check if variability has been increasing
+Fit a linear model with residuals
+
+Use a non-linear fit
+
+Check for auto-correlation between years
+
+
+** 
+Calculate distance of lake occurrences moving over time (migration) - furthest southern point
+One lake model at a time
+Which decade does the ice disappear
+
+Split the analysis by different time periods (2070-2099)
+
+Average historical period vs. future (1970-1999)  vs (2070-2099) - to identify anomalies
+
+Create a map that identifies the anomalies (mean and SD)
+
+Hot-spot analysis
+
+Spatial map of temperature
+
+
+### Jan 29 Meeting
+Repeat model comparison with difference between two time periods
+
+
+Add baseline lake coverage (lakes that were present in the historical dataset)
+
+** Geographic chnage in lake ice coverage
+Conduct spatial analysis (Hot-spot analysis)
+Add percent change in ice duration based on historic values
+Select the northern hemisphere only
+Latitude x axis, change in percent ice cover on/off
+
+** How far do lakes retreat
+Degrees latitude / decade (how fast are the models retreating)
+Calculate the distance between pixels to account for change in latitude to kms
+
+** Check distance from coast (continentality)
+
+
+** Check Stdev and mean across models for each pixel vs. lake characteristics
+
+

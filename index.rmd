@@ -264,7 +264,6 @@ ggplot() +  geom_map(data=world, map = world, aes(long, lat, map_id = region), f
 ```
 
 
-
 ### Average patterns among models
 ```{r}
 iceOnFiles <- allfiles[grep("icestart", allfiles)]

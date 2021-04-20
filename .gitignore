@@ -2,4 +2,6 @@
 .Rhistory
 .RData
 .Ruserdata
-.nc
+*.nc
+animatedGIFs
+animatedGIFs.zip

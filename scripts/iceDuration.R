@@ -279,11 +279,15 @@ AllDurations <- do.call(rbind, YearlyDuration)
 meanDuration <- AllDurations %>% filter(!(GCM == "gfdl-esm2m" & model=="lake")) %>% ## drop anomalous model
   group_by(lakeType, RCPs, Year) %>% summarize(meanDuration = mean(Duration, na.rm=T)) %>% mutate(timePeriod = ifelse(Year <2006, "current","future")) %>% 
   ungroup() %>% group_by(lakeType, timePeriod) %>% mutate(meanPeriod = mean(meanDuration)) %>% ungroup()
-currentDuration <- meanDuration %>% filter(Year < 2006) %>% group_by(lakeType, Year) %>%  mutate(diffDuration  = meanPeriod-meanDuration) %>% data.frame()
-futureDuration <- meanDuration %>% filter(Year > 2006) %>% group_by(lakeType) %>%  mutate(diffDuration  =  319-meanDuration) %>% data.frame()
+currentDuration <- meanDuration %>% filter(Year < 2006) %>% group_by(lakeType, Year) %>% data.frame()
+futureDuration <- meanDuration %>% filter(Year > 2006) %>% group_by(lakeType)%>% data.frame()
 
 meanPerm <- mean(currentDuration[currentDuration$lakeType=="Permanent", "meanDuration"], na.rm=T)
 meanSeason <- mean(currentDuration[currentDuration$lakeType=="Seasonal", "meanDuration"], na.rm=T)
+
+## Subtract mean diff
+currentDuration[,"diffDuration"] <- ifelse(currentDuration$lakeType=="Permanent",currentDuration$meanDuration-meanPerm, currentDuration$meanDuration-meanSeason)
+futureDuration[,"diffDuration"] <- ifelse(futureDuration$lakeType=="Permanent",futureDuration$meanDuration-meanPerm, futureDuration$meanDuration-meanSeason)
 
 
 

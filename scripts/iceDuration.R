@@ -204,3 +204,89 @@ lakearea = ncvar_get(test, "tot_area")
 
 
 str(lakearea)
+
+
+
+
+
+##### Look at difference in duration between two time frames separated by permanent vs. seasonal ice cover #####
+
+
+source("functions.r")
+
+## List files
+allfiles <- list.files("data//isimip_ice", full.names = T)
+iceOnFiles <- allfiles[grep("icestart", allfiles)]
+iceEndFiles <- allfiles[grep("iceend", allfiles)]
+
+## get model names
+allmodels <- iceOnFiles %>% gsub(".*_ice/", "", .) %>% gsub("_historical.*", "", .)
+GCMmodels <- gsub(".*_", "", allmodels)
+lakemodels <- gsub("_.*", "", allmodels)
+RCPmodels <- iceOnFiles %>% gsub(".*historical_", "", .) %>% gsub("_icestart.*", "", .)
+
+## Convert models to text
+modelsOn <- data.frame(lakemodel = lakemodels, GCM = GCMmodels, RCP = RCPmodels, filepath=iceOnFiles, stringsAsFactors = F)
+
+## get model names
+allmodels <- iceEndFiles %>% gsub(".*_ice/", "", .) %>% gsub("_historical.*", "", .)
+GCMmodels <- gsub(".*_", "", allmodels)
+lakemodels <- gsub("_.*", "", allmodels)
+RCPmodels <- iceEndFiles %>% gsub(".*historical_", "", .) %>% gsub("_iceend.*", "", .) 
+
+## Convert models to text
+modelsOff <- data.frame(lakemodel = lakemodels, GCM = GCMmodels, RCP = RCPmodels, filepath=iceEndFiles, stringsAsFactors = F)
+
+
+## Pull out ice duration for each pair raster
+
+
+durationDiff <- function(model, GCM, RCP){
+  
+  ## Select models
+  modelTemp <- paste0("(",model,")(?:.+)(",GCM,")(?:.+)(",RCP,")")
+  
+  
+  ## Current duration
+  iceOn <- stack(grep(modelTemp, modelsOn$filepath, value=T))
+  iceOff <- stack(grep(modelTemp, modelsOff$filepath, value=T))
+  duration <- iceOff-iceOn
+
+  ### Permanent ice change
+  permanent <- duration
+  permanent[permanent<300] <- NA
+
+  ### seasonal ice change
+  seasonal <- duration
+  seasonal[seasonal>300] <- NA
+  
+  ## Determine difference for permanent 
+  durationPatterns <- data.frame(Model = model, GCMs = GCM, RCPs=RCP,
+                                 lakeType = rep(c("Permanent","Seasonal"), each=199), 
+                                 Year = c(1901:2099,1901:2099),Duration = c(cellStats(permanent, mean),cellStats(seasonal, mean)))
+  
+  return(durationPatterns)
+}
+
+durationDiff("albm","gfdl","rcp26")
+
+YearlyDuration <- lapply(1:46, function(i) {
+  durationDiff(modelsOff[i,"lakemodel"], modelsOff[i, "GCM"], modelsOff[i,"RCP"])
+  })
+
+AllDurations <- do.call(rbind, YearlyDuration)
+
+meanDuration <- AllDurations %>% filter(!(GCM == "gfdl-esm2m" & model=="lake")) %>% ## drop anomalous model
+  group_by(lakeType, RCPs, Year) %>% summarize(meanDuration = mean(Duration, na.rm=T)) %>% mutate(timePeriod = ifelse(Year <2006, "current","future")) %>% 
+  ungroup() %>% group_by(lakeType, timePeriod) %>% mutate(meanPeriod = mean(meanDuration)) %>% ungroup()
+currentDuration <- meanDuration %>% filter(Year < 2006) %>% group_by(lakeType, Year) %>%  mutate(diffDuration  = meanPeriod-meanDuration) %>% data.frame()
+futureDuration <- meanDuration %>% filter(Year > 2006) %>% group_by(lakeType) %>%  mutate(diffDuration  =  319-meanDuration) %>% data.frame()
+
+meanPerm <- mean(currentDuration[currentDuration$lakeType=="Permanent", "meanDuration"], na.rm=T)
+meanSeason <- mean(currentDuration[currentDuration$lakeType=="Seasonal", "meanDuration"], na.rm=T)
+
+
+
+ggplot(currentDuration, aes(x = Year,y = diffDuration)) + geom_line() + geom_line(data=futureDuration, aes(x = Year,y =diffDuration, color=RCPs)) +
+  facet_wrap(~lakeType, scales="free_y") + scale_colour_manual(values=c("#F0E442","#E69F00",  "#D55E00")) +
+  theme_classic() + ylab("Mean Change in Duration (days)")

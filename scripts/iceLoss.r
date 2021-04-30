@@ -85,14 +85,15 @@ meanIceLoss <- iceLossPatterns %>% mutate(Year = Year+1900) %>%  filter(!(Model 
 iceAreaAverage <- mean(meanIceLoss[meanIceLoss$Year %in% 1970:1999, "iceArea"] )
 
 currentIceloss <- meanIceLoss %>% filter(Year <2007) %>% group_by(Year) %>% 
-  summarize(iceAreamean = mean(iceArea)) %>% mutate(perChange = iceAreamean/iceAreaAverage ) %>% 
+  summarize(iceAreamean = mean(iceArea)) %>% mutate(perChange = 1-(iceAreaAverage-iceAreamean) ) %>% 
   data.frame()
-futureIceloss <- meanIceLoss %>% filter(Year >2006) %>%  mutate(perChange = iceArea/iceAreaAverage ) 
+futureIceloss <- meanIceLoss %>% filter(Year >2006) %>%  mutate(perChange = 1-(iceAreaAverage-iceArea) ) 
 
 ggplot() + geom_line(data=currentIceloss, aes(x=Year, y=perChange), size=1.2) +
   geom_line(data=futureIceloss, aes(x=Year, y=perChange, color=RCPs), size=1.2) +
   theme_Publication() +  scale_colour_manual(values=c("#F0E442","#E69F00",  "#D55E00")) +
-  ylab("Percent Change in Lake Ice Area") + 
-  geom_hline(yintercept=1, lty=2)
+  ylab("Change in lake ice area (km2)") + 
+  geom_hline(yintercept=1, lty=2) +
+  annotate(geom="text", x=2050, y= 10000, label="1.5 Million km2 of Ice (1970-1999)")
 
 

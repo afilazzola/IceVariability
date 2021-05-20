@@ -61,7 +61,7 @@ durationDiff <- function(model, GCM, RCP){
   return(dfIce)
 }
 
-durationDiff("albm","gfdl","rcp26")
+test <- durationDiff("albm","gfdl","rcp26")
 
 
 
@@ -95,5 +95,9 @@ ggplot() + geom_line(data=currentIceloss, aes(x=Year, y=perChange), size=1.2) +
   ylab("Change in lake ice area (km2)") + 
   geom_hline(yintercept=1, lty=2) +
   annotate(geom="text", x=2050, y= 10000, label="1.5 Million km2 of Ice (1970-1999)")
+
+
+
+
 
 

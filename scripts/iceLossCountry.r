@@ -88,7 +88,7 @@ durationDiff <- function(model, GCM, RCP){
 ### Run all lake models in parallel
 cl <- makeCluster(4, type="PSOCK")
 clusterEvalQ(cl, { library(MASS); RNGkind("L'Ecuyer-CMRG") })
-clusterExport(cl, varlist=list("modelTemp","modelsOn","modelsOff","durationDiff"),
+clusterExport(cl, varlist=list("modelsOn","modelsOff","durationDiff"),
               envir = environment())
 registerDoParallel(cl)
 
@@ -129,10 +129,11 @@ m1 <- lm(abs(diffArea) ~ log10(Population) * RCPs, data=iceCountryArea)
 anova(m1)
 
 ### Plot
-plot1 <- ggplot(iceCountryArea, aes(x=log10(Population) , y=abs(diffArea))) + 
+plot1 <- ggplot(iceCountryArea, aes(x=Population , y=abs(diffArea))) + 
   geom_point(size=3, pch=21, aes(fill=RCPs)) + theme_classic() + scale_fill_brewer(palette="YlOrRd") +
   scale_y_log10() + ylab("Area of ice lost (km2)") + xlab("Population of country (log)") +
-  geom_smooth(method="lm", se=T, color="black")
+  geom_smooth(method="lm", se=T, color="black") + scale_x_log10()+
+  geom_label( label=iceCountryArea$Country.Code, aes(fill=RCPs))
 plot1
 
 
@@ -143,10 +144,11 @@ anova(m2)
 summary(m2)
 
 ### Plot
-plot2 <- ggplot(iceCountryArea, aes(x=log10(CO2) , y=abs(diffArea))) + 
+plot2 <- ggplot(iceCountryArea, aes(x=CO2 , y=abs(diffArea))) + 
   geom_point(size=3, pch=21, aes(fill=RCPs)) + theme_classic() + scale_fill_brewer(palette="YlOrRd") +
-  scale_y_log10() + ylab("Area of ice lost (km2)") + xlab("Carbon Emissions (log)") +
-  geom_smooth(method="lm", se=T, color="black")
+  scale_y_log10() + ylab("Area of ice lost (km2)") + xlab("Carbon emissions (metric tons per capita)") +
+  geom_smooth(method="lm", se=T, color="black") + scale_x_log10() + 
+  geom_label( label=iceCountryArea$Country.Code, aes(fill=RCPs))
 plot2
 
 
@@ -156,10 +158,11 @@ anova(m3)
 summary(m3)
 
 ### Plot
-plot3 <- ggplot(iceCountryArea, aes(x=log10(GDP) , y=abs(diffArea))) + 
+plot3 <- ggplot(iceCountryArea, aes(x=GDP , y=abs(diffArea))) + 
   geom_point(size=3, pch=21, aes(fill=RCPs)) + theme_classic() + scale_fill_brewer(palette="YlOrRd") +
-  scale_y_log10() + ylab("Area of ice lost (km2)") + xlab("Gross Domestic Product ($USD log)") +
-  geom_smooth(method="lm", se=T, color="black")
+  scale_y_log10() + ylab("Area of ice lost (km2)") + xlab("Gross Domestic Product ($USD)") +
+  geom_smooth(method="lm", se=T, color="black") + scale_x_log10() +
+  geom_label( label=iceCountryArea$Country.Code, aes(fill=RCPs))
 plot3
 
 
@@ -170,10 +173,11 @@ anova(m4)
 summary(m4)
 
 ### Plot
-plot4 <- ggplot(iceCountryArea, aes(x=log10(FreshwaterExtract) , y=abs(diffArea))) + 
+plot4 <- ggplot(iceCountryArea, aes(x=FreshwaterExtract , y=abs(diffArea))) + 
   geom_point(size=3, pch=21, aes(fill=RCPs)) + theme_classic() + scale_fill_brewer(palette="YlOrRd") +
-  scale_y_log10() + ylab("Area of ice lost (km2)") + xlab("Freshwater Withdrawal in Billion m3 (log)") +
-  geom_smooth(method="lm", se=T, color="black")
+  scale_y_log10() + ylab("Area of ice lost (km2)") + xlab("Annual freshwater withdrawal (billions m3 water)") +
+  geom_smooth(method="lm", se=T, color="black")+  scale_x_log10() +
+  geom_label( label=iceCountryArea$Country.Code, aes(fill=RCPs))
 plot4
 
 

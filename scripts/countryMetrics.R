@@ -12,14 +12,14 @@ gdp <- read.csv("data//countryStats//GDP.csv", stringsAsFactors = F) ### GDP in 
 pop <- read.csv("data//countryStats//Population.csv", stringsAsFactors = F) ## total population 
 
 ## Select the latest year and variable for a simplified dataset
-co2 <- co2 %>% select(country = ï..Country.Name, CO2 = X2016)
-freshwater <- freshwater %>% select(country = ï..Country.Name, FreshwaterExtract = X2017)
-gdp <- gdp %>% select(country = ï..Country.Name, GDP = X2019)
-pop <- pop %>% select(country = ï..Country.Name, Population = X2019)
+co2 <- co2 %>% dplyr::select(country = ï..Country.Name, CO2 = X2016, Country.Code )
+freshwater <- freshwater %>% dplyr::select(country = ï..Country.Name, FreshwaterExtract = X2017)
+gdp <- gdp %>% dplyr::select(country = ï..Country.Name, GDP = X2019)
+pop <- pop %>% dplyr::select(country = ï..Country.Name, Population = X2019)
 
 ## All metrics joined
 countryMetrics <- left_join(co2, freshwater) %>% left_join(gdp) %>% left_join(pop)
 countryMetrics[,"GDPperCapital"] <- countryMetrics$GDP / countryMetrics$Population
 countryMetrics[,"CO2perCapital"] <- countryMetrics$CO2 / countryMetrics$Population
 
-write.csv(countryMetrics, "SummarizedCountryMetrics.csv", row.names = F)
+write.csv(countryMetrics, "data//countryStats//SummarizedCountryMetrics.csv", row.names = F)

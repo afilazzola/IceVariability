@@ -274,27 +274,37 @@ durationDiff <- function(model, GCM, RCP){
   iceOff <- stack(grep(modelTemp, modelsOff$filepath, value=T))
   duration <- iceOff-iceOn
 
-  ### Permanent ice change
+  ### Loss of permanent ice cover
   permanent <- duration
-  permanent[permanent<365] <- NA
+  permanent[permanent<360] <- NA
   permanent[permanent>0] <- 1
   permanentArea <- permanent*lakearea
   permanentAreaTotal  <- cellStats(permanentArea, sum)
-
-  ### seasonal ice change
+  
+  ### Loss of seasonal ice cover
   seasonal <- duration
-  seasonal[seasonal>365] <- NA
+  seasonal[seasonal>360] <- NA
+  seasonal[seasonal<360] <- 1
+  seasonalArea <- seasonal*lakearea
+  seasonalAreaTotal  <- cellStats(seasonalArea, sum)
+
+  ### seasonal ice change in duration
+  seasonal <- duration
+  seasonal[seasonal>360] <- NA
+  seasonalDuration <- cellStats(seasonal, mean)
   
   ## Determine difference for permanent 
   durationPatterns <- data.frame(Model = model, GCMs = GCM, RCPs=RCP,
-                                 lakeType = rep(c("PermanentArea","SeasonalDuration"), each=199), 
-                                 Year = c(1901:2099,1901:2099),Value = c(permanentAreaTotal,cellStats(seasonal, mean)))
+                                 lakeType = rep(c("PermanentArea","SeasonalArea","SeasonalDuration"), each=199), 
+                                 Year = c(1901:2099,1901:2099,1901:2099),Value = c(permanentAreaTotal,seasonalAreaTotal,seasonalDuration))
   
   return(durationPatterns)
 }
 
 durationDiff("albm","gfdl","rcp26")
 
+
+#### Get seasonal and permanent ice duratino for each lake
 YearlyDuration <- lapply(1:46, function(i) {
   durationDiff(modelsOff[i,"lakemodel"], modelsOff[i, "GCM"], modelsOff[i,"RCP"])
   })
@@ -306,19 +316,34 @@ filter(Year < 2006) %>% group_by(lakeType, Year) %>% summarize(yearlyValue=mean(
 futureConditions <- AllDurations %>% filter(!(GCM == "gfdl-esm2m" & model=="lake")) %>% ## drop anomalous model
   filter(Year > 2006) %>% group_by(lakeType, Year, RCPs) %>% summarize(yearlyValue=mean(Value)) %>%  data.frame()
 
-meanPerm <- mean(currentDuration[currentDuration$lakeType=="PermanentArea", "meanValue"], na.rm=T)
-meanSeason <- mean(currentDuration[currentDuration$lakeType=="SeasonalDuration", "meanValue"], na.rm=T)
-
-### Change in permanent ice Cover
-
-ggplot() + geom_point(data=currentConditions %>% filter(lakeType=="PermanentArea"), aes(x=Year, y=yearlyValue)) +
-  geom_point(data=futureConditions %>% filter(lakeType=="PermanentArea"), aes(x=Year, y=yearlyValue, color=RCPs)) + scale_colour_manual(values=c("#F0E442","#E69F00",  "#D55E00")) +
-  theme_classic() + ylab("Area of permanent ice cover (km2)")
-
-historicDuration <- currentConditions %>% filter(lakeType=="SeasonalDuration") %>% filter(Year %in% 1970:1999) %>%
-  summarize(historicMean = mean(yearlyValue))
+summaryValues <- currentConditions %>% filter(Year %in% 1970:1999) %>% group_by(lakeType) %>% 
+  summarize(avgVal = mean(yearlyValue)) %>% data.frame()
+avgPermArea <- summaryValues[summaryValues$lakeType=="PermanentArea","avgVal"]
+avgSeasonalArea <- summaryValues[summaryValues$lakeType=="SeasonalArea","avgVal"]
+avgSeasonalduration <- summaryValues[summaryValues$lakeType=="SeasonalDuration","avgVal"]
 
 
-ggplot() + geom_point(data=currentConditions %>% filter(lakeType=="SeasonalDuration"), aes(x=Year, y=236-yearlyValue)) +
-  geom_point(data=futureConditions %>% filter(lakeType=="SeasonalDuration"), aes(x=Year, y=236-yearlyValue, color=RCPs)) + scale_colour_manual(values=c("#F0E442","#E69F00",  "#D55E00")) +
-  theme_classic() + ylab("Duration")
+
+## Change in permanent ice cover
+plot1 <- ggplot() + geom_point(data=currentConditions %>% filter(lakeType=="PermanentArea"), aes(x=Year, y=yearlyValue-avgPermArea)) +
+  geom_point(data=futureConditions %>% filter(lakeType=="PermanentArea"), aes(x=Year, y=yearlyValue-avgPermArea, color=RCPs)) + scale_colour_manual(values=c("#F0E442","#E69F00",  "#D55E00")) +
+  theme_classic() + ylab("Area of seasonal ice cover (km2)") + geom_hline(yintercept=0, lty=2) + 
+  annotate(geom="text", x=2070, y= 400, label=paste0("Permanent ice area ",round(avgPermArea,0),"km2"))
+
+
+### Change in seasonal ice Cover
+plot2 <- ggplot() + geom_point(data=currentConditions %>% filter(lakeType=="SeasonalArea"), aes(x=Year, y=yearlyValue-avgSeasonalArea)) +
+  geom_point(data=futureConditions %>% filter(lakeType=="SeasonalArea"), aes(x=Year, y=yearlyValue-avgSeasonalArea, color=RCPs)) + scale_colour_manual(values=c("#F0E442","#E69F00",  "#D55E00")) +
+  theme_classic() + ylab("Area of permanent ice cover (km2)") + geom_hline(yintercept=0, lty=2) + 
+  annotate(geom="text", x=2070, y= 10000, label=paste0("Seasonal ice area ",round(avgSeasonalArea,0),"km2"))
+
+## Change in seasonal ice cover
+
+## Change in seasonal ice duration
+plot3 <- ggplot() + geom_point(data=currentConditions %>% filter(lakeType=="SeasonalDuration"), aes(x=Year, y=yearlyValue-avgSeasonalduration)) +
+  geom_point(data=futureConditions %>% filter(lakeType=="SeasonalDuration"), aes(x=Year, y=yearlyValue-avgSeasonalduration, color=RCPs)) + scale_colour_manual(values=c("#F0E442","#E69F00",  "#D55E00")) +
+  theme_classic() + ylab("Duration")+ geom_hline(yintercept=0, lty=2) + 
+  annotate(geom="text", x=2070, y= 2, label=paste0("Current ice duration ",round(avgSeasonalduration,0)," days"))
+
+gridExtra::grid.arrange(plot1, plot2, plot3, ncol=3)
+

@@ -51,7 +51,6 @@ RCPmodels <- iceEndFiles %>% gsub(".*historical_", "", .) %>% gsub("_iceend.*", 
 ## Convert models to text
 modelsOff <- data.frame(lakemodel = lakemodels, GCM = GCMmodels, RCP = RCPmodels, filepath=iceEndFiles, stringsAsFactors = F)
 
-
 durationDiff <- function(model, GCM, RCP){
   
   ## Select models
@@ -129,13 +128,23 @@ m1 <- lm(abs(diffArea) ~ log10(Population) * RCPs, data=iceCountryArea)
 anova(m1)
 
 ### Plot
-plot1 <- ggplot(iceCountryArea, aes(x=Population , y=abs(diffArea))) + 
+plot1 <- ggplot(iceCountryArea , aes(x=Population , y=abs(diffArea))) + 
   geom_point(size=3, pch=21, aes(fill=RCPs)) + theme_classic() + scale_fill_brewer(palette="YlOrRd") +
   scale_y_log10() + ylab("Area of ice lost (km2)") + xlab("Population of country (log)") +
   geom_smooth(method="lm", se=T, color="black") + scale_x_log10()+
   geom_label( label=iceCountryArea$Country.Code, aes(fill=RCPs))
 plot1
 
+## Revise plot with simplified RCPs
+populationDiff <- iceCountryArea %>% mutate(changeIceArea = log10(abs(diffArea)+1)) %>% 
+  dplyr::select(Country.Code, Population, RCPs, changeIceArea) %>% spread(RCPs, changeIceArea)
+plot1 <- ggplot(populationDiff, aes(x=Population , y=rcp60)) + 
+   theme_classic() + scale_fill_brewer(palette="YlOrRd") +
+  ylab("Area of ice lost (km2)") + xlab("Population of country (log)") +
+  geom_smooth(method="lm", se=T, color="black") + scale_x_log10()+
+  geom_errorbar(aes(x= Population, ymin=rcp26, ymax=rcp85), size=1.4) +
+  geom_label( label=populationDiff$Country.Code)  + ylim(0,5)
+plot1
 
 
 ### Examine relationship with CO2
@@ -143,12 +152,16 @@ m2 <- lm(abs(diffArea) ~ log10(CO2) * RCPs, data=iceCountryArea)
 anova(m2)
 summary(m2)
 
+
 ### Plot
-plot2 <- ggplot(iceCountryArea, aes(x=CO2 , y=abs(diffArea))) + 
-  geom_point(size=3, pch=21, aes(fill=RCPs)) + theme_classic() + scale_fill_brewer(palette="YlOrRd") +
-  scale_y_log10() + ylab("Area of ice lost (km2)") + xlab("Carbon emissions (metric tons per capita)") +
-  geom_smooth(method="lm", se=T, color="black") + scale_x_log10() + 
-  geom_label( label=iceCountryArea$Country.Code, aes(fill=RCPs))
+CO2Diff <- iceCountryArea %>% mutate(changeIceArea = log10(abs(diffArea)+1)) %>% 
+  dplyr::select(Country.Code, CO2, RCPs, changeIceArea) %>% spread(RCPs, changeIceArea)
+plot2 <- ggplot(CO2Diff, aes(x=CO2 , y=rcp60)) + 
+  theme_classic() + scale_fill_brewer(palette="YlOrRd") +
+  ylab("Area of ice lost (km2)") + xlab("Carbon emissions (metric tons per capita)") +
+  geom_smooth(method="lm", se=T, color="black") + scale_x_log10()+
+  geom_errorbar(aes(x= CO2, ymin=rcp26, ymax=rcp85), size=1.4) +
+  geom_label( label=populationDiff$Country.Code)  + ylim(0,5)
 plot2
 
 
@@ -158,11 +171,14 @@ anova(m3)
 summary(m3)
 
 ### Plot
-plot3 <- ggplot(iceCountryArea, aes(x=GDP , y=abs(diffArea))) + 
-  geom_point(size=3, pch=21, aes(fill=RCPs)) + theme_classic() + scale_fill_brewer(palette="YlOrRd") +
-  scale_y_log10() + ylab("Area of ice lost (km2)") + xlab("Gross Domestic Product ($USD)") +
-  geom_smooth(method="lm", se=T, color="black") + scale_x_log10() +
-  geom_label( label=iceCountryArea$Country.Code, aes(fill=RCPs))
+GDPDiff <- iceCountryArea %>% mutate(changeIceArea = log10(abs(diffArea)+1)) %>% 
+  dplyr::select(Country.Code, GDP, RCPs, changeIceArea) %>% spread(RCPs, changeIceArea)
+plot3 <- ggplot(GDPDiff, aes(x=GDP , y=rcp60)) + 
+  theme_classic() + scale_fill_brewer(palette="YlOrRd") +
+  ylab("Area of ice lost (km2)") + xlab("Gross Domestic Product ($USD)") +
+  geom_smooth(method="lm", se=T, color="black") + scale_x_log10()+
+  geom_errorbar(aes(x= GDP, ymin=rcp26, ymax=rcp85), size=1.4) +
+  geom_label( label=populationDiff$Country.Code)  + ylim(0,5)
 plot3
 
 
@@ -173,12 +189,16 @@ anova(m4)
 summary(m4)
 
 ### Plot
-plot4 <- ggplot(iceCountryArea, aes(x=FreshwaterExtract , y=abs(diffArea))) + 
-  geom_point(size=3, pch=21, aes(fill=RCPs)) + theme_classic() + scale_fill_brewer(palette="YlOrRd") +
-  scale_y_log10() + ylab("Area of ice lost (km2)") + xlab("Annual freshwater withdrawal (billions m3 water)") +
-  geom_smooth(method="lm", se=T, color="black")+  scale_x_log10() +
-  geom_label( label=iceCountryArea$Country.Code, aes(fill=RCPs))
+WaterDiff <- iceCountryArea %>% mutate(changeIceArea = log10(abs(diffArea)+1)) %>% 
+  dplyr::select(Country.Code, FreshwaterExtract, RCPs, changeIceArea) %>% spread(RCPs, changeIceArea)
+plot4 <- ggplot(WaterDiff, aes(x=FreshwaterExtract , y=rcp60)) + 
+  theme_classic() + scale_fill_brewer(palette="YlOrRd") +
+  ylab("Area of ice lost (km2)") + xlab("Annual freshwater withdrawal (billions m3 water)") +
+  geom_smooth(method="lm", se=T, color="black") + scale_x_log10()+
+  geom_errorbar(aes(x= FreshwaterExtract, ymin=rcp26, ymax=rcp85), size=1.4) +
+  geom_label( label=populationDiff$Country.Code)  + ylim(0,5)
 plot4
+
 
 
 gridExtra::grid.arrange(plot1, plot2, plot3, plot4, ncol=2)

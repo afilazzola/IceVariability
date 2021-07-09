@@ -311,10 +311,10 @@ YearlyDuration <- lapply(1:46, function(i) {
 
 AllDurations <- do.call(rbind, YearlyDuration)
 
-currentConditions <- AllDurations %>% filter(!(GCM == "gfdl-esm2m" & model=="lake")) %>% ## drop anomalous model
+currentConditions <- AllDurations %>% filter(!(GCMs == "gfdl-esm2m" & Model=="lake")) %>% ## drop anomalous model
 filter(Year < 2006) %>% group_by(lakeType, Year) %>% summarize(yearlyValue=mean(Value)) %>%  data.frame()
-futureConditions <- AllDurations %>% filter(!(GCM == "gfdl-esm2m" & model=="lake")) %>% ## drop anomalous model
-  filter(Year > 2006) %>% group_by(lakeType, Year, RCPs) %>% summarize(yearlyValue=mean(Value)) %>%  data.frame()
+futureConditions <- AllDurations %>% filter(!(GCMs == "gfdl-esm2m" & Model=="lake")) %>% ## drop anomalous model
+  filter(Year > 2006-32) %>% group_by(lakeType, Year, RCPs) %>% summarize(yearlyValue=mean(Value)) %>%  data.frame()
 
 summaryValues <- currentConditions %>% filter(Year %in% 1970:1999) %>% group_by(lakeType) %>% 
   summarize(avgVal = mean(yearlyValue)) %>% data.frame()
@@ -323,27 +323,51 @@ avgSeasonalArea <- summaryValues[summaryValues$lakeType=="SeasonalArea","avgVal"
 avgSeasonalduration <- summaryValues[summaryValues$lakeType=="SeasonalDuration","avgVal"]
 
 
+### Calculate running average for dataset
+currentConditions <- currentConditions %>% group_by(lakeType) %>% mutate(rollingMean=zoo::rollapply(yearlyValue,31,mean,align='right',fill=NA))
+futureConditions <- futureConditions %>% group_by(lakeType, RCPs) %>% mutate(rollingMean=zoo::rollapply(yearlyValue,31,mean,align='right',fill=NA))
+
 
 ## Change in permanent ice cover
-plot1 <- ggplot() + geom_point(data=currentConditions %>% filter(lakeType=="PermanentArea"), aes(x=Year, y=yearlyValue-avgPermArea)) +
-  geom_point(data=futureConditions %>% filter(lakeType=="PermanentArea"), aes(x=Year, y=yearlyValue-avgPermArea, color=RCPs)) + scale_colour_manual(values=c("#F0E442","#E69F00",  "#D55E00")) +
-  theme_classic() + ylab("Area of seasonal ice cover (km2)") + geom_hline(yintercept=0, lty=2) + 
-  annotate(geom="text", x=2070, y= 400, label=paste0("Permanent ice area ",round(avgPermArea,0),"km2"))
+plot1 <- ggplot() + geom_point(data=currentConditions %>% filter(lakeType=="PermanentArea"), aes(x=Year, y=yearlyValue-avgPermArea), alpha=0.3) +
+  geom_point(data=futureConditions %>% filter(lakeType=="PermanentArea" & Year>2006), aes(x=Year, y=yearlyValue-avgPermArea, color=RCPs), alpha=0.3) + scale_colour_manual(values=c("#F0E442","#E69F00",  "#D55E00")) +
+  theme_classic() + ylab("Area of permanent ice cover (km2)") + geom_hline(yintercept=0, lty=2) + 
+  annotate(geom="text", x=2070, y= 400, label=paste0("Permanent ice area ",round(avgPermArea,0),"km2")) +
+  geom_line(data=futureConditions %>% filter(lakeType=="PermanentArea"), aes(x=Year, y=rollingMean-avgPermArea, color=RCPs), size=1.5) +
+  geom_line(data=currentConditions %>% filter(lakeType=="PermanentArea"), aes(x=Year, y=rollingMean-avgPermArea), size=1.5)  +
+  xlim(1930,2100)
+
 
 
 ### Change in seasonal ice Cover
-plot2 <- ggplot() + geom_point(data=currentConditions %>% filter(lakeType=="SeasonalArea"), aes(x=Year, y=yearlyValue-avgSeasonalArea)) +
-  geom_point(data=futureConditions %>% filter(lakeType=="SeasonalArea"), aes(x=Year, y=yearlyValue-avgSeasonalArea, color=RCPs)) + scale_colour_manual(values=c("#F0E442","#E69F00",  "#D55E00")) +
-  theme_classic() + ylab("Area of permanent ice cover (km2)") + geom_hline(yintercept=0, lty=2) + 
-  annotate(geom="text", x=2070, y= 10000, label=paste0("Seasonal ice area ",round(avgSeasonalArea,0),"km2"))
+
+ggplot() + geom_point(data=currentConditions %>% filter(lakeType=="SeasonalArea"), aes(x=Year, y=yearlyValue-avgSeasonalArea), alpha=0.3) +
+  geom_point(data=futureConditions %>% filter(lakeType=="SeasonalArea" & Year>2006), aes(x=Year, y=yearlyValue-avgSeasonalArea, color=RCPs), alpha=0.3) + scale_colour_manual(values=c("#F0E442","#E69F00",  "#D55E00")) +
+  theme_classic() + ylab("Area of seasonal ice cover (km2)") + geom_hline(yintercept=0, lty=2) + 
+  annotate(geom="text", x=2070, y= 10000, label=paste0("SeasonalArea ice area ",round(avgSeasonalArea,0),"km2")) +
+  geom_line(data=futureConditions %>% filter(lakeType=="SeasonalArea"), aes(x=Year, y=rollingMean-avgSeasonalArea, color=RCPs), size=1.5) +
+  geom_line(data=currentConditions %>% filter(lakeType=="SeasonalArea"), aes(x=Year, y=rollingMean-avgSeasonalArea), size=1.5)  +
+  xlim(1930,2100)
+
 
 ## Change in seasonal ice cover
 
 ## Change in seasonal ice duration
-plot3 <- ggplot() + geom_point(data=currentConditions %>% filter(lakeType=="SeasonalDuration"), aes(x=Year, y=yearlyValue-avgSeasonalduration)) +
+plot3 <- ggplot() + geom_line(data=currentConditions %>% filter(lakeType=="SeasonalDuration"), aes(x=Year, y=yearlyValue-avgSeasonalduration)) +
   geom_point(data=futureConditions %>% filter(lakeType=="SeasonalDuration"), aes(x=Year, y=yearlyValue-avgSeasonalduration, color=RCPs)) + scale_colour_manual(values=c("#F0E442","#E69F00",  "#D55E00")) +
   theme_classic() + ylab("Duration")+ geom_hline(yintercept=0, lty=2) + 
   annotate(geom="text", x=2070, y= 2, label=paste0("Current ice duration ",round(avgSeasonalduration,0)," days"))
 
+
+ggplot() + geom_point(data=currentConditions %>% filter(lakeType=="SeasonalDuration"), aes(x=Year, y=yearlyValue-avgSeasonalduration), alpha=0.3) +
+  geom_point(data=futureConditions %>% filter(lakeType=="SeasonalDuration" & Year>2006), aes(x=Year, y=yearlyValue-avgSeasonalduration, color=RCPs), alpha=0.3) + scale_colour_manual(values=c("#F0E442","#E69F00",  "#D55E00")) +
+  theme_classic() + ylab("Change in duration of ice cover") + geom_hline(yintercept=0, lty=2) + 
+  annotate(geom="text", x=2070, y= 2, label=paste0("Current ice duration ",round(avgSeasonalduration,0)," days")) +
+  geom_line(data=futureConditions %>% filter(lakeType=="SeasonalDuration"), aes(x=Year, y=rollingMean-avgSeasonalduration, color=RCPs), size=1.5) +
+  geom_line(data=currentConditions %>% filter(lakeType=="SeasonalDuration"), aes(x=Year, y=rollingMean-avgSeasonalduration), size=1.5)  +
+  xlim(1930,2100)
+
 gridExtra::grid.arrange(plot1, plot2, plot3, ncol=3)
+
+gridExtra::grid.arrange(plot1, plot2, ncol=2)
 

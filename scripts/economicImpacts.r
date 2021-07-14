@@ -116,3 +116,15 @@ regionPatterns <- data.frame(Region=c("USA","Ontario","Nova Scotia","Heilongjian
            RCP85 = avgPoly85)
 
 
+
+
+#### Plot the patterns of economic loss
+
+economicData <- read.csv("data//economicLoss.csv")
+
+economicData$Category2 <- factor(economicData$Category2, levels=c("Manufacturing","Sports & Entertainment","Ice Fishing"))
+
+ggplot(economicData, aes(x=Category2, y= Economic.Value..in.USD./1000000)) + geom_bar(stat="identity") + 
+  theme_classic() + xlab("") + ylab("Economic Value in Millions of Dollars (USD)")
+
+economicData %>% group_by(Category2) %>% summarize(Millions=sum(Economic.Value..in.USD.)/1000000) %>% data.frame()

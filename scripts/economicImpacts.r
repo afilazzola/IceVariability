@@ -40,8 +40,12 @@ outDurationChange <- function(iceOnPaths, IceoffPaths, rcp) {
   avgOff <- mean(iceOff, na.rm=T)
   futureDuration <- avgOn-avgOff
   
-  perChange <- (futureDuration-currentDuration)/currentDuration
-  
+  stackDuration <- stack(currentDuration, futureDuration)
+  perChange <- overlay(stackDuration, fun =   
+                    function(x,y) { 
+                      ifelse( !is.na(x) & is.na(y) == 1, -1, ((y/x) -1))
+                    } )
+
   writeRaster(perChange, paste0("data//durationChangeRCP//DurationDiff",rcp,".tif"), overwrite=T)
 }
 
@@ -60,7 +64,9 @@ proj4string(lakeGPS) <- "+proj=longlat +datum=WGS84"
 
 
 diff26 <- raster("data//durationChangeRCP//DurationDiffrcp26.tif")
+diff26[diff26>0] <- NA
 diff60 <- raster("data//durationChangeRCP//DurationDiffrcp60.tif")
+diff60[diff60>0] <- NA
 diff85 <- raster("data//durationChangeRCP//DurationDiffrcp85.tif")
 
 lakeBuffer26 <-  raster::extract(diff26, lakeGPS, buffer=100000)

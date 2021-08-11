@@ -17,8 +17,12 @@ economic <- read.csv("data//economicData.csv")
 ### Create a raster to estimate the difference for each RCP
 
 allModels <- read.csv("data//rasterFilepaths.csv", stringsAsFactors=F) ## load in all raster filepaths
-allModels <- allModels %>% filter(!(lakemodel == "lake" & GCM == "gfdl-esm2m" & RCP == "rcp85")) ## drop anomalous model
+allModels <- allModels %>% 
+              filter(!(lakemodel == "lake" & GCM == "gfdl-esm2m" & RCP == "rcp85")) %>%  ## drop anomalous model
+              filter(filepath != "data//isimip_ice/clm45_hadgem2-es_historical_rcp85_icestart_1901_2099.nc") ## drop uneven model
 
+modelsOn <- grep("icestart", allModels$filepath, value=T)
+modelsOff <- grep("iceend", allModels$filepath, value=T)
 
 outDurationChange <- function(iceOnPaths, IceoffPaths, rcp) {
   
@@ -134,3 +138,91 @@ ggplot(economicData, aes(x=Category2, y= Economic.Value..in.USD./1000000)) + geo
   theme_classic() + xlab("") + ylab("Economic Value in Millions of Dollars (USD)")
 
 economicData %>% group_by(Category2) %>% summarize(Millions=sum(Economic.Value..in.USD.)/1000000) %>% data.frame()
+
+
+
+
+
+################ Repeat extraction of change in duration
+
+## Pull out ice duration for each pair raster
+meanNA <- function(x) { apply(x, 2, mean, na.rm=T)}
+
+## Lake Characteristics
+durationDiff <- function(model, GCM, RCP){
+  
+  ## Select models
+  modelTemp <- paste0("(",model,")(?:.+)(",GCM,")(?:.+)(",RCP,")")
+  
+  
+  ## Current duration
+  iceOn <- stack(grep(modelTemp, modelsOn, value=T))
+  iceOff <- stack(grep(modelTemp, modelsOff, value=T))
+  duration <- iceOff-iceOn
+  
+  ## specific lake points
+  lakeBuffer <-  raster::extract(duration, lakeGPS, buffer=100000)
+  lakeSpecific <-  unlist(lapply(lakeBuffer, meanNA ))
+  lakePatterns <- data.frame(Region=rep(lakeGPS$Regions.Lakes,each=199),
+                             Year= rep(1901:2099,6),
+                             duration = lakeSpecific)
+  ## polygons for larger regions
+  polyRCP <-  raster::extract(duration, combinedPoly)
+  avgPoly <- unlist(lapply(polyRCP, meanNA ))
+  regionPatterns <- data.frame(Region=rep(c("USA","Ontario","Nova Scotia","Heilongjiang", "Sweden","Minnesota"),each=199),
+                               Year= rep(1901:2099,6),
+                               duration = avgPoly)
+  
+  ## Create output dataframe
+  durationPatterns <- rbind(lakePatterns, regionPatterns)
+  durationPatterns[,"Model"] <- model
+  durationPatterns[,"GCMs"] <- GCM
+  durationPatterns[,"RCPs"] <- RCP
+
+  return(durationPatterns)
+}
+
+durationDiff("albm","gfdl","rcp26")
+
+
+#### Get seasonal and permanent ice duratino for each lake
+YearlyDuration <- lapply(1:45, function(i) {
+  durationDiff(allModels[i,"lakemodel"], allModels[i, "GCM"], allModels[i,"RCP"])
+})
+
+AllDurations <- do.call(rbind, YearlyDuration)
+
+# write.csv(AllDurations, "data//durationChangeAllModels.csv", row.names=FALSE)
+AllDurations <- read.csv("data//durationChangeAllModels.csv")
+
+meanDurations <- AllDurations %>% group_by(Region, Year, RCPs) %>% summarize(meanDur = mean(duration, na.rm=T))
+
+## Calculate historic ice duration for each site
+historicDuration <- meanDurations %>% group_by(Region, RCPs) %>% 
+                    filter(Year %in% 1970:1999) %>% 
+                    summarize(historicDur = mean(meanDur))
+
+## Determine the future change based on historic values
+futureDuration <- left_join(meanDurations, historicDuration) %>% 
+                    filter(Year >2004) %>% 
+                    mutate(changeDuration =  ifelse(meanDur==0 & historicDur>0, -1, (meanDur/historicDur)-1 )) %>% 
+                    mutate(Region = as.character(Region))
+
+## Clean up economic data to merge with change in duration
+economicReduced <- economic[,c("Regions.Lakes","Economic.Value..in.USD.","Country")]
+economicReduced <- economicReduced %>% mutate(economicValue = as.numeric(gsub(",","", as.character(Economic.Value..in.USD.))),
+                                              Regions.Lakes=as.character(Regions.Lakes),
+                                              Country = as.character(Country))
+economicReduced[economicReduced$Regions.Lakes=="COl lake, Alberta","economicValue"] <- 57194
+economicReduced <- economicReduced[!is.na(economicReduced$economicValue),]
+economicReduced[,"Region"] <- economicReduced$Regions.Lakes
+economicReduced[c(1:3,5),"Region"] <- c("USA","Sweden","Sweden","Minnesota")
+
+## Select only columns with economics and region
+econs <- economicReduced[,c("Region","economicValue")]
+econsDuration <- merge(econs, futureDuration, by="Region") %>% mutate(economicLoss = economicValue*changeDuration)
+
+## Mean costs
+econsDuration %>% group_by(RCPs) %>% summarize(meanEconomicValue = mean(economicValue)/1000000,
+                                                meanChange = mean(changeDuration),
+                                                meanEconomicLoss = mean(economicLoss)/1000000)

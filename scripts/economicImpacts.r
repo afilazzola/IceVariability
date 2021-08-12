@@ -223,6 +223,23 @@ econs <- economicReduced[,c("Region","economicValue")]
 econsDuration <- merge(econs, futureDuration, by="Region") %>% mutate(economicLoss = economicValue*changeDuration)
 
 ## Mean costs
-econsDuration %>% group_by(RCPs) %>% summarize(meanEconomicValue = mean(economicValue)/1000000,
+meanEco <- econsDuration %>% group_by(RCPs) %>% summarize(meanEconomicValue = mean(economicValue)/1000000,
                                                 meanChange = mean(changeDuration),
                                                 meanEconomicLoss = mean(economicLoss)/1000000)
+
+## End of century costs
+totalEco <- econsDuration %>% group_by(RCPs) %>% summarize(BillonsOfRevenue = sum(economicValue)/1000000000,
+                                               BillonsOfLoss = sum(economicLoss)/1000000000,
+                                              percentLossRevenue=BillonsOfLoss/BillonsOfRevenue)
+
+write.csv(merge(meanEco, totalEco), "data//CenturyEconomicCosts.csv", row.names=FALSE)
+
+meanEco <- econsDuration %>% group_by(Region,RCPs) %>% summarize(meanEconomicValue = mean(economicValue)/1000000,
+                                                          meanChange = mean(changeDuration),
+                                                          meanEconomicLoss = mean(economicLoss)/1000000)
+
+## End of century costs
+totalEco <- econsDuration %>% group_by(Region,RCPs) %>% summarize(BillonsOfRevenue = sum(economicValue)/1000000000,
+                                                           BillonsOfLoss = sum(economicLoss)/1000000000,
+                                                           percentLossRevenue=BillonsOfLoss/BillonsOfRevenue)
+write.csv(merge(meanEco, totalEco), "data//CenturyEconomicCostsRegion.csv", row.names=FALSE)

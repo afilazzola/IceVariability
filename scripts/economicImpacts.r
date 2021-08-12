@@ -194,6 +194,7 @@ AllDurations <- do.call(rbind, YearlyDuration)
 
 # write.csv(AllDurations, "data//durationChangeAllModels.csv", row.names=FALSE)
 AllDurations <- read.csv("data//durationChangeAllModels.csv")
+AllDurations <- AllDurations %>% filter(Region != "Heilongjiang") ## link no longer available
 
 meanDurations <- AllDurations %>% group_by(Region, Year, RCPs) %>% summarize(meanDur = mean(duration, na.rm=T))
 
@@ -204,7 +205,7 @@ historicDuration <- meanDurations %>% group_by(Region, RCPs) %>%
 
 ## Determine the future change based on historic values
 futureDuration <- left_join(meanDurations, historicDuration) %>% 
-                    filter(Year >2004) %>% 
+                    filter(Year >1970) %>% 
                     mutate(changeDuration =  ifelse(meanDur==0 & historicDur>0, -1, (meanDur/historicDur)-1 )) %>% 
                     mutate(Region = as.character(Region))
 
@@ -219,18 +220,40 @@ economicReduced[,"Region"] <- economicReduced$Regions.Lakes
 economicReduced[c(1:3,5),"Region"] <- c("USA","Sweden","Sweden","Minnesota")
 
 ## Select only columns with economics and region
-econs <- economicReduced[,c("Region","economicValue")]
+econs <- economicReduced[,c("Region","economicValue")] %>% filter(Region != "Heilonngjiang Province") ## link no longer available
 econsDuration <- merge(econs, futureDuration, by="Region") %>% mutate(economicLoss = economicValue*changeDuration)
 
+
+### Plot pattern over time
+yearlyEco <- econsDuration %>% group_by(Year, RCPs) %>% summarize(historicEconomicValue = sum(economicValue)/1000000,
+                                                                  meanDurationChange = mean(changeDuration),
+                                                                  yearlyEconomicLoss = sum(economicLoss)/1000000)
+rollingEco <- yearlyEco %>% group_by(RCPs) %>% mutate(rollingMean=zoo::rollapply(yearlyEconomicLoss,31,mean,align='right',fill=NA))
+
+ggplot(yearlyEco %>% filter(Year >2004), aes(x=Year, y=yearlyEconomicLoss, color=RCPs)) + geom_point(alpha=0.3, size=2) + 
+  theme_classic() + ylab("Annual Economic Loss (billions $USD)") + geom_hline(yintercept=0, lty=2) +
+  scale_colour_manual(values=c("#F0E442","#E69F00",  "#D55E00")) +
+  geom_line(data=rollingEco%>% filter(Year >2004), aes(x=Year, y=rollingMean, color=RCPs), size=1.5) +
+  annotate(geom="text", x=2070, y= 50, label="$2,036 million USD annual economic revenue")
+    
+## Century total loss
+yearlyEco %>% filter(Year >2004) %>% ungroup() %>% group_by(RCPs) %>% summarize(totalLostRevenue=sum(yearlyEconomicLoss)/1000)
+yearlyEco %>% filter(Year >2004) %>% ungroup() %>% group_by(RCPs) %>% summarize(totalLostRevenue=mean(yearlyEconomicLoss)/1000)
+
+
+
 ## Mean costs
-meanEco <- econsDuration %>% group_by(RCPs) %>% summarize(meanEconomicValue = mean(economicValue)/1000000,
+meanEco <- econsDuration %>% group_by(Region, RCPs) %>% summarize(meanEconomicValue = mean(economicValue)/1000000,
                                                 meanChange = mean(changeDuration),
-                                                meanEconomicLoss = mean(economicLoss)/1000000)
+                                                meanEconomicLoss = mean(economicLoss)/1000000) %>% 
+          ungroup() %>% group_by(RCPs) %>% summarize(GlobalEconomicValue = sum(meanEconomicValue),
+                                                     meanGlobalChange = mean(meanChange),
+                                                     GlobalEconomicLoss = sum(meanEconomicLoss))
 
 ## End of century costs
-totalEco <- econsDuration %>% group_by(RCPs) %>% summarize(BillonsOfRevenue = sum(economicValue)/1000000000,
-                                               BillonsOfLoss = sum(economicLoss)/1000000000,
-                                              percentLossRevenue=BillonsOfLoss/BillonsOfRevenue)
+totalEco <- econsDuration %>% group_by(RCPs) %>% summarize(BillionsOfRevenue = sum(economicValue)/1000000000,
+                                                           BillionsOfLoss = sum(economicLoss)/1000000000,
+                                              percentLossRevenue=BillionsOfLoss/BillonsOfRevenue)
 
 write.csv(merge(meanEco, totalEco), "data//CenturyEconomicCosts.csv", row.names=FALSE)
 

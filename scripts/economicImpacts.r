@@ -11,8 +11,15 @@ library(foreach)
 
 ## load data
 
-economic <- read.csv("data//economicData.csv")
+economic <- read.csv("data//economicData.csv", stringsAsFactors = F)
 
+## make a filelist of website screenshots
+economic <- read.csv("figs//EconomicTable.csv", stringsAsFactors = F)
+economic <- economic %>% rownames_to_column(var="ID") %>% filter(Economic.Value..in.USD. != "")
+lapply(9:nrow(economic), function(i) {
+  tryCatch({
+webshot::webshot(economic[i,"Source"], paste0("out//WebsiteSourceID",i,".png"))
+}, error = function(e) e) })
 
 ### Create a raster to estimate the difference for each RCP
 

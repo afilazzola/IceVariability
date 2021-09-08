@@ -304,8 +304,15 @@ durationDiff <- function(model, GCM, RCP){
 durationDiff("albm","gfdl","rcp26")
 
 
+## specify cluster
+CL <- makeCluster(5, type="PSOCK")
+clusterExport(cl=CL, list("durationDiff", "modelsOff", "modelsOn","lakearea"),
+              envir=environment())
+clusterEvalQ(CL, library(raster))
+registerDoParallel(cores = CL)
+
 #### Get seasonal and permanent ice duratino for each lake
-YearlyDuration <- lapply(1:46, function(i) {
+YearlyDuration <- parLapply(cl=CL, 1:46, function(i) {
   durationDiff(modelsOff[i,"lakemodel"], modelsOff[i, "GCM"], modelsOff[i,"RCP"])
   })
 
@@ -337,6 +344,16 @@ plot1 <- ggplot() + geom_point(data=currentConditions %>% filter(lakeType=="Perm
   geom_line(data=currentConditions %>% filter(lakeType=="PermanentArea"), aes(x=Year, y=rollingMean-avgPermArea), size=1.5)  +
   xlim(1930,2100)
 
+## Mean patterns
+se <- function(x) { sd(x)/ sqrt(length(n))}
+futureConditions %>% filter(lakeType=="PermanentArea") %>% filter(Year %in% 2070:2099) %>% 
+  group_by(RCPs) %>% summarize(avg = mean(yearlyValue), error=se(yearlyValue))
+futureConditions %>% filter(lakeType=="SeasonalArea") %>% filter(Year %in% 2070:2099) %>% 
+  mutate(diffValue = 1538282 - yearlyValue) %>% 
+  group_by(RCPs) %>% summarize(avg = mean(diffValue), error=se(diffValue))
+futureConditions %>% filter(lakeType=="SeasonalDuration") %>% filter(Year %in% 2070:2099) %>% 
+  mutate(diffValue = 237 - yearlyValue) %>% 
+  group_by(RCPs) %>% summarize(avg = mean(diffValue), error=se(diffValue))
 
 
 ### Change in seasonal ice Cover

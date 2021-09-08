@@ -205,3 +205,6 @@ gridExtra::grid.arrange(plot1, plot2, plot3, plot4, ncol=2)
 
 
 
+##### Appendix for country 
+
+write.csv(iceCountryArea, "data//CountryIceStats.csv", row.names=FALSE)

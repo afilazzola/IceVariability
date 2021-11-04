@@ -218,7 +218,8 @@ futureDuration <- left_join(meanDurations, historicDuration) %>%
 
 ## Clean up economic data to merge with change in duration
 economicReduced <- economic[,c("Regions.Lakes","Economic.Value..in.USD.","Country")]
-economicReduced <- economicReduced %>% mutate(economicValue = as.numeric(gsub(",","", as.character(Economic.Value..in.USD.))),
+economicReduced$Economic.Value..in.USD. <- economicReduced$Economic.Value..in.USD. %>% gsub("\\$", "", .) %>% gsub(",", "", .)
+economicReduced <- economicReduced %>% mutate(economicValue = as.numeric(Economic.Value..in.USD.),
                                               Regions.Lakes=as.character(Regions.Lakes),
                                               Country = as.character(Country))
 economicReduced[economicReduced$Regions.Lakes=="COl lake, Alberta","economicValue"] <- 57194
@@ -237,10 +238,23 @@ yearlyEco <- econsDuration %>% group_by(Year, RCPs) %>% summarize(historicEconom
                                                                   yearlyEconomicLoss = sum(economicLoss)/1000000)
 rollingEco <- yearlyEco %>% group_by(RCPs) %>% mutate(rollingMean=zoo::rollapply(yearlyEconomicLoss,31,mean,align='right',fill=NA))
 
-ggplot(yearlyEco %>% filter(Year >2004), aes(x=Year, y=yearlyEconomicLoss, color=RCPs)) + geom_point(alpha=0.3, size=2) + 
+## Apply future value to estimates
+bondValues <- data.frame(Year = 1971:2099, ## Determine bond values over the last 30 years and into the future
+                          rate= c(rep(0,50),
+                                  c(0.066, 0.15, 0.415, 0.676, 0.676, 1.102, 1.102, 1.376, 1.376, 1.376, 1.523), ## 2022-2031
+                                  rep(1.523, 9), rep(1.964, 10), rep(1.959, 10), # 2031-2061
+                                  rep(1.959,39)))
+yearlyEco <- yearlyEco %>% left_join(bondValues) %>% 
+              mutate(futureT = ifelse(Year <2021, 0, Year-2021)) %>% 
+              mutate(FV = yearlyEconomicLoss*(1+rate)^futureT)
+rollingEco <- rollingEco %>% left_join(bondValues) %>% 
+  mutate(futureT = ifelse(Year <2021, 0, Year-2021)) %>% 
+  mutate(rollingMeanFV = rollingMean*(1+rate)^futureT)
+
+ggplot(yearlyEco %>% filter(Year >2004), aes(x=Year, y=FV, color=RCPs)) + geom_point(alpha=0.3, size=2) + 
   theme_classic() + ylab("Annual Economic Loss (billions $USD)") + geom_hline(yintercept=0, lty=2) +
   scale_colour_manual(values=c("#F0E442","#E69F00",  "#D55E00")) +
-  geom_line(data=rollingEco%>% filter(Year >2004), aes(x=Year, y=rollingMean, color=RCPs), size=1.5) +
+  geom_line(data=rollingEco%>% filter(Year >2004), aes(x=Year, y=rollingMeanFV , color=RCPs), size=1.5) +
   annotate(geom="text", x=2070, y= 50, label="$2,036 million USD annual economic revenue")
     
 ## Century total loss

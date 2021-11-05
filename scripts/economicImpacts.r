@@ -246,16 +246,19 @@ bondValues <- data.frame(Year = 1971:2099, ## Determine bond values over the las
                                   rep(1.959,39)))
 yearlyEco <- yearlyEco %>% left_join(bondValues) %>% 
               mutate(futureT = ifelse(Year <2021, 0, Year-2021)) %>% 
-              mutate(FV = yearlyEconomicLoss*(1+rate)^futureT)
+              mutate(FV = yearlyEconomicLoss*(1+(rate/100))^futureT)
+
 rollingEco <- rollingEco %>% left_join(bondValues) %>% 
   mutate(futureT = ifelse(Year <2021, 0, Year-2021)) %>% 
-  mutate(rollingMeanFV = rollingMean*(1+rate)^futureT)
+  mutate(rollingMeanFV = rollingMean*(1+(rate/100))^futureT)
 
-ggplot(yearlyEco %>% filter(Year >2004), aes(x=Year, y=FV, color=RCPs)) + geom_point(alpha=0.3, size=2) + 
+ggplot(yearlyEco %>% filter(Year >2004), aes(x=Year, y=FV), color=RCPs) + geom_point(alpha=0.3, size=2) + 
   theme_classic() + ylab("Annual Economic Loss (billions $USD)") + geom_hline(yintercept=0, lty=2) +
   scale_colour_manual(values=c("#F0E442","#E69F00",  "#D55E00")) +
   geom_line(data=rollingEco%>% filter(Year >2004), aes(x=Year, y=rollingMeanFV , color=RCPs), size=1.5) +
-  annotate(geom="text", x=2070, y= 50, label="$2,036 million USD annual economic revenue")
+  annotate(geom="text", x=2070, y= 50, label="$2,036 million USD annual economic revenue") 
+#### *** Add COP findings for contextualization of results ***
+## https://www.nature.com/articles/nclimate2465
     
 ## Century total loss
 yearlyEco %>% filter(Year >2004) %>% ungroup() %>% group_by(RCPs) %>% summarize(totalLostRevenue=sum(yearlyEconomicLoss)/1000)

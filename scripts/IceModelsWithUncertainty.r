@@ -187,23 +187,36 @@ source("scripts/economicDataLocations.r") ## load functions to get ice data for 
 
 economic <- read.csv("data//economicData.csv", stringsAsFactors = F)
 
-## Pull out ice duration for each pair raster
+## functions
 meanNA <- function(x) { apply(x, 2, mean, na.rm=T)}
 
 
+## model df
+allModels <- read.csv("data//rasterFilepaths.csv", stringsAsFactors=F) ## load in all raster filepaths
+allModels <- allModels %>% 
+  filter(!(lakemodel == "lake" & GCM == "gfdl-esm2m" & RCP == "rcp85")) %>%  ## drop anomalous model
+  filter(filepath != "data//isimip_ice/clm45_hadgem2-es_historical_rcp85_icestart_1901_2099.nc") ## drop uneven model
+modelsOn <- grep("icestart", allModels$filepath, value=T)
+modelsOff <- grep("iceend", allModels$filepath, value=T)
+
 #### Get mean and error change in ice duration
 cl = makeCluster(6)
-clusterExport(cl=cl, list("durationDiff","allModels","meanNA","se"),
+clusterExport(cl=cl, list("durationDiff","allModels","meanNA","se","modelsOn","modelsOff"),
               envir=environment())
 registerDoParallel(cl)
 YearlyDuration <-foreach(i = 1:45, .packages=c("raster","dismo"), .combine = rbind) %dopar% {
   durationDiff(allModels[i,"lakemodel"], allModels[i, "GCM"], allModels[i,"RCP"], meanNA)
 }
-YearlyDurationError <- lapply(1:45, function(i) {
-  durationDiff(allModels[i,"lakemodel"], allModels[i, "GCM"], allModels[i,"RCP"], se)
-})
-AllDurations <- do.call(rbind, YearlyDuration)
-AllDurationErrors <- do.call(rbind, YearlyDurationError)
+
+### Get baseline to compare change
+baselineData <- YearlyDuration %>% 
+  filter(Year %in% 1970:1999) %>% 
+  group_by(Region, Model, GCMs, RCPs) %>% 
+  summarize(baselineDuration = mean(duration))
+YearlyDurationChange <- YearlyDuration %>% 
+  filter(Year > 1988) %>% 
+  left_join(baselineData) %>% 
+  mutate(durationChange = duration/ baselineDuration)
 
 
 ## Clean up economic data to merge with change in duration
@@ -217,7 +230,92 @@ economicReduced <- economicReduced[!is.na(economicReduced$economicValue),]
 economicReduced[,"Region"] <- economicReduced$Regions.Lakes
 economicReduced[c(1:3,5),"Region"] <- c("USA","Sweden","Sweden","Minnesota")
 
+### Load yield and change data 
+discount <- read.csv("data//Economic//DiscountFactor.csv")
+yields <- read.csv("data//Economic//Yields.csv")
+
+## Dataframes for yields and discounts before prediction
+historicYield <- expand.grid(Seed = paste0("Seed", 1:100), Year = rep(2005:2021), yield = 1)
+historicDiscount <- expand.grid(Seed = paste0("Seed", 1:100), Year = rep(2005:2021), discount = 1)
+
+### Plot yields
+names(yields) <- paste0("Seed", 1:100)
+yields[,"Year"] <- 2022:2098
+yieldsLong <- yields %>%  
+  gather(Seed, yield, Seed1:Seed100) %>% 
+  rbind(historicYield)
+yieldsAverage <- yieldsLong %>% 
+  group_by(Year) %>% 
+  summarize(avgYield = mean(yield), errorYield = se(yield))
+
+yieldPlot <- ggplot(yieldsAverage, aes(x= Year, y= avgYield)) +
+  geom_line() +  theme_classic() +
+  geom_ribbon(aes(ymin = avgYield - errorYield, ymax = avgYield + errorYield), alpha= 0.3) +
+  theme(text = element_text(size = 20)) +
+  ylab("Annual yield")  + xlab("")
+yieldPlot
+
+names(discount) <- paste0("Seed", 1:100)
+discount[,"Year"] <- 2022:2098
+discountLong <- discount %>%  
+  gather(Seed, discount, Seed1:Seed100) %>% 
+  rbind(historicDiscount)
+discountAverage <- discountLong %>% 
+  group_by(Year) %>% 
+  summarize(avgDiscount = mean(discount), errorDiscount= se(discount))
 
 
+discountPlot <- ggplot(discountAverage, aes(x= Year, y= avgDiscount)) +
+  geom_line() +  theme_classic() +
+  geom_ribbon(aes(ymin = avgDiscount - errorDiscount, ymax = avgDiscount + errorDiscount), alpha= 0.3) +
+  theme(text = element_text(size = 20)) +
+  ylab("Discount rate")  + xlab("")
+discountPlot
+
+gridExtra::grid.arrange(yieldPlot, discountPlot, ncol = 2)
+
+## join economic data with lake ice
+econs <- economicReduced[,c("Region","economicValue")] %>% filter(Region != "Heilonngjiang Province") ## link no longer available
+econsDuration <- YearlyDurationChange %>% 
+  left_join(econs) %>% 
+  mutate(economicChange = economicValue * durationChange)
 
 
+econsRollingChange <- econsDuration  %>% 
+  group_by(GCMs, Model, RCPs, Year) %>% 
+  summarize(totalValueChange = sum(economicChange, na.rm = T)) %>% 
+  mutate(rollingEconomics = zoo::rollapply(totalValueChange, 31, mean, align='center', fill=NA)) 
+
+### Calculate summary for plot
+econsChangeError <- econsRollingChange %>% 
+  group_by(Year, RCPs) %>% 
+  summarize(avgTotalChange = mean(totalValueChange, na.rm =T),
+            errorTotalChange = se(totalValueChange),
+            avgRollingChange = mean(rollingEconomics, na.rm =T),
+            errorRollingChange = se(rollingEconomics))
+### Layer in discount variation
+discountError <- econsChangeError %>% 
+  left_join(discountLong) %>% 
+  mutate(avgRollingChange = avgRollingChange * discount) %>% 
+  group_by(Year, RCPs) %>% 
+  summarize(errorDiscounting = se(avgRollingChange),
+            meanDiscount = mean(discount))
+econsChangeDiscounted <- econsChangeError %>% 
+  left_join(discountError) %>% 
+  mutate(rollingChangeDiscounted = avgRollingChange * meanDiscount,
+         totalChangeDiscounted = avgTotalChange * meanDiscount)
+  
+
+ggplot(econsChangeDiscounted, aes(x = Year, y= rollingChangeDiscounted, fill = RCPs, color = RCPs)) + 
+  geom_line() +
+  geom_ribbon(aes(ymin = rollingChangeDiscounted - errorRollingChange, ymax = rollingChangeDiscounted + errorRollingChange), alpha = 0.3, color = NA) +
+  xlim(2005, 2085) +
+  geom_point(aes(x = Year, y= avgTotalChange, fill = RCPs, color = RCPs), alpha=0.7) +
+  theme_classic() + 
+  scale_fill_manual(values=c("#F0E442","#E69F00",  "#D55E00")) +
+  scale_color_manual(values=c("#F0E442","#E69F00",  "#D55E00")) + 
+  theme(text = element_text(size = 20), legend.position = c(0.2, 0.2)) +
+  ylab("Change in ice duration (days)")  + xlab("") +
+  geom_hline(yintercept = 0, lty = 2, size = 1.5, color = "Grey50") +
+  annotate(geom = "text", x = 2050, y = 3, label = paste0("Ice duration ", baselineDuration, " days"), size = 6)
+durationPlot

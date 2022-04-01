@@ -55,7 +55,7 @@ durationDiff <- function(model, GCM, RCP, fun){
   
   ## specific lake points
   lakeBuffer <-  raster::extract(duration, lakeGPS, buffer=100000)
-  lakeSpecific <-  unlist(lapply(lakeBuffer, meanNA ))
+  lakeSpecific <-  unlist(lapply(lakeBuffer, fun ))
   lakePatterns <- data.frame(Region=rep(lakeGPS$Regions.Lakes,each=199),
                              Year= rep(1901:2099,6),
                              duration = lakeSpecific)

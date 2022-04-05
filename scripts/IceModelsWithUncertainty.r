@@ -208,6 +208,9 @@ YearlyDuration <-foreach(i = 1:45, .packages=c("raster","dismo"), .combine = rbi
   durationDiff(allModels[i,"lakemodel"], allModels[i, "GCM"], allModels[i,"RCP"], meanNA)
 }
 
+write.csv(YearlyDuration, "data//YearlyDurationAllmodelsSelectSites.csv", row.names = F)
+YearlyDuration <- read.csv("data//YearlyDurationAllmodelsSelectSites.csv")
+
 ### Get baseline to compare change
 baselineData <- YearlyDuration %>% 
   filter(Year %in% 1970:1999) %>% 
@@ -293,6 +296,10 @@ econsChangeError <- econsRollingChange %>%
             errorTotalChange = se(totalValueChange),
             avgRollingChange = mean(rollingEconomics, na.rm =T),
             errorRollingChange = se(rollingEconomics))
+
+
+NAcumsum <-function(x) {cumsum(ifelse(is.na(x), 0, x)) + x*0}
+
 ### Layer in discount variation
 discountError <- econsChangeError %>% 
   left_join(discountLong) %>% 
@@ -302,11 +309,11 @@ discountError <- econsChangeError %>%
             meanDiscount = mean(discount))
 econsChangeDiscounted <- econsChangeError %>% 
   left_join(discountError) %>% 
-  mutate(rollingChangeDiscounted = avgRollingChange * meanDiscount,
-         totalChangeDiscounted = avgTotalChange * meanDiscount)
-  
+  mutate(rollingChangeDiscounted = avgRollingChange / meanDiscount,
+         totalChangeDiscounted = avgTotalChange / meanDiscount)
+econsChangeDiscounted[,"sumChangeDiscounted"] <- NAcumsum(econsChangeDiscounted$rollingChangeDiscounted)
 
-ggplot(econsChangeDiscounted, aes(x = Year, y= rollingChangeDiscounted, fill = RCPs, color = RCPs)) + 
+ggplot(econsChangeDiscounted, aes(x = Year, y= avgRollingChange, fill = RCPs, color = RCPs)) + 
   geom_line() +
   geom_ribbon(aes(ymin = rollingChangeDiscounted - errorRollingChange, ymax = rollingChangeDiscounted + errorRollingChange), alpha = 0.3, color = NA) +
   xlim(2005, 2085) +

@@ -208,7 +208,8 @@ YearlyDuration <-foreach(i = 1:45, .packages=c("raster","dismo"), .combine = rbi
   durationDiff(allModels[i,"lakemodel"], allModels[i, "GCM"], allModels[i,"RCP"], meanNA)
 }
 
-write.csv(YearlyDuration, "data//YearlyDurationAllmodelsSelectSites.csv", row.names = F)
+# write.csv(YearlyDuration, "data//YearlyDurationAllmodelsSelectSites.csv", row.names = F)
+
 YearlyDuration <- read.csv("data//YearlyDurationAllmodelsSelectSites.csv")
 
 ### Get baseline to compare change
@@ -282,47 +283,33 @@ econs <- economicReduced[,c("Region","economicValue")] %>% filter(Region != "Hei
 econsDuration <- YearlyDurationChange %>% 
   left_join(econs) %>% 
   mutate(economicChange = economicValue * durationChange)
-
+baselineValue <- sum(econs$economicValue)
 
 econsRollingChange <- econsDuration  %>% 
   group_by(GCMs, Model, RCPs, Year) %>% 
-  summarize(totalValueChange = sum(economicChange, na.rm = T)) %>% 
-  mutate(rollingEconomics = zoo::rollapply(totalValueChange, 31, mean, align='center', fill=NA)) 
+  summarize(totalValueChange = sum(economicChange, na.rm = T)- baselineValue) %>%  
+  mutate(totalValueChangeMillions = totalValueChange / 1000000) %>% 
+  mutate(rollingEconomics = zoo::rollapply(totalValueChangeMillions, 31, mean, align='center', fill=NA)) 
 
 ### Calculate summary for plot
 econsChangeError <- econsRollingChange %>% 
   group_by(Year, RCPs) %>% 
-  summarize(avgTotalChange = mean(totalValueChange, na.rm =T),
-            errorTotalChange = se(totalValueChange),
+  summarize(avgTotalChange = mean(totalValueChangeMillions, na.rm =T),
+            errorTotalChange = se(totalValueChangeMillions),
             avgRollingChange = mean(rollingEconomics, na.rm =T),
             errorRollingChange = se(rollingEconomics))
 
 
-NAcumsum <-function(x) {cumsum(ifelse(is.na(x), 0, x)) + x*0}
-
-### Layer in discount variation
-discountError <- econsChangeError %>% 
-  left_join(discountLong) %>% 
-  mutate(avgRollingChange = avgRollingChange * discount) %>% 
-  group_by(Year, RCPs) %>% 
-  summarize(errorDiscounting = se(avgRollingChange),
-            meanDiscount = mean(discount))
-econsChangeDiscounted <- econsChangeError %>% 
-  left_join(discountError) %>% 
-  mutate(rollingChangeDiscounted = avgRollingChange / meanDiscount,
-         totalChangeDiscounted = avgTotalChange / meanDiscount)
-econsChangeDiscounted[,"sumChangeDiscounted"] <- NAcumsum(econsChangeDiscounted$rollingChangeDiscounted)
-
-ggplot(econsChangeDiscounted, aes(x = Year, y= avgRollingChange, fill = RCPs, color = RCPs)) + 
+ggplot(econsChangeError, aes(x = Year, y= avgRollingChange, fill = RCPs, color = RCPs)) + 
   geom_line() +
-  geom_ribbon(aes(ymin = rollingChangeDiscounted - errorRollingChange, ymax = rollingChangeDiscounted + errorRollingChange), alpha = 0.3, color = NA) +
-  xlim(2005, 2085) +
+  geom_ribbon(aes(ymin = avgRollingChange - errorRollingChange, ymax = avgRollingChange + errorRollingChange), alpha = 0.3, color = NA) +
+  xlim(2020, 2085) +
   geom_point(aes(x = Year, y= avgTotalChange, fill = RCPs, color = RCPs), alpha=0.7) +
   theme_classic() + 
   scale_fill_manual(values=c("#F0E442","#E69F00",  "#D55E00")) +
   scale_color_manual(values=c("#F0E442","#E69F00",  "#D55E00")) + 
   theme(text = element_text(size = 20), legend.position = c(0.2, 0.2)) +
-  ylab("Change in ice duration (days)")  + xlab("") +
+  ylab("Value lost of lake ice (millions $USD)")  + xlab("") +
   geom_hline(yintercept = 0, lty = 2, size = 1.5, color = "Grey50") +
-  annotate(geom = "text", x = 2050, y = 3, label = paste0("Ice duration ", baselineDuration, " days"), size = 6)
+  annotate(geom = "text", x = 2070, y = 20, label = paste0("Annual value ", round(baselineValue/1000000,1), " million $USD"), size = 6)
 durationPlot

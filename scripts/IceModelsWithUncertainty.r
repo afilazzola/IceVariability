@@ -214,7 +214,7 @@ YearlyDuration <- read.csv("data//YearlyDurationAllmodelsSelectSites.csv")
 
 ### Get baseline to compare change
 baselineData <- YearlyDuration %>% 
-  filter(Year %in% 1970:1999) %>% 
+  filter(Year %in% 2010:2020) %>% 
   group_by(Region, Model, GCMs, RCPs) %>% 
   summarize(baselineDuration = mean(duration))
 YearlyDurationChange <- YearlyDuration %>% 
@@ -300,16 +300,30 @@ econsChangeError <- econsRollingChange %>%
             errorRollingChange = se(rollingEconomics))
 
 
-ggplot(econsChangeError, aes(x = Year, y= avgRollingChange, fill = RCPs, color = RCPs)) + 
+econPlot <- ggplot(econsChangeError, aes(x = Year, y= avgRollingChange, fill = RCPs, color = RCPs)) + 
   geom_line() +
   geom_ribbon(aes(ymin = avgRollingChange - errorRollingChange, ymax = avgRollingChange + errorRollingChange), alpha = 0.3, color = NA) +
-  xlim(2020, 2085) +
+  xlim(2022, 2085) +
   geom_point(aes(x = Year, y= avgTotalChange, fill = RCPs, color = RCPs), alpha=0.7) +
   theme_classic() + 
+  ylim(-500, 50) +
   scale_fill_manual(values=c("#F0E442","#E69F00",  "#D55E00")) +
   scale_color_manual(values=c("#F0E442","#E69F00",  "#D55E00")) + 
   theme(text = element_text(size = 20), legend.position = c(0.2, 0.2)) +
   ylab("Value lost of lake ice (millions $USD)")  + xlab("") +
   geom_hline(yintercept = 0, lty = 2, size = 1.5, color = "Grey50") +
   annotate(geom = "text", x = 2070, y = 20, label = paste0("Annual value ", round(baselineValue/1000000,1), " million $USD"), size = 6)
-durationPlot
+econPlot
+
+## Future total change
+econsChangeError %>% 
+  left_join(discountAverage) %>% 
+  mutate(discountValue =  avgTotalChange * avgDiscount, 
+         discountLower = (avgTotalChange * (avgDiscount - errorDiscount)),
+         futureValuation = avgTotalChange / avgDiscount,
+         futureValuationLower = (avgTotalChange /  (avgDiscount - errorDiscount))) %>% 
+  group_by(RCPs) %>% 
+  filter(Year > 2021) %>% 
+  summarize(rawLoss2100 = sum(avgTotalChange , na.rm = T),
+            totalLoss2020 = sum(discountValue, na.rm = T),errorlLoss2020 = totalLoss2020-sum(discountLower, na.rm = T),
+            totalLoss2100 = sum(futureValuation, na.rm = T), errorLoss2100 = totalLoss2100-sum(futureValuationLower, na.rm = T))

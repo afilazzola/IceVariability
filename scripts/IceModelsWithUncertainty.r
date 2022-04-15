@@ -316,14 +316,17 @@ econPlot <- ggplot(econsChangeError, aes(x = Year, y= avgRollingChange, fill = R
 econPlot
 
 ## Future total change
-econsChangeError %>% 
-  left_join(discountAverage) %>% 
-  mutate(discountValue =  avgTotalChange * avgDiscount, 
-         discountLower = (avgTotalChange * (avgDiscount - errorDiscount)),
-         futureValuation = avgTotalChange / avgDiscount,
-         futureValuationLower = (avgTotalChange /  (avgDiscount - errorDiscount))) %>% 
+econsOut <- econsChangeError %>% 
+  dplyr::select(Year, RCPs, avgTotalChange) %>% 
+  left_join(discountLong) %>% 
+  mutate(discountValue2020 = avgTotalChange * discount,
+         futureValue2100 = avgTotalChange / discount) %>% 
+  group_by(RCPs, Seed) %>% 
+  summarize(totaldiscount2020 = sum(discountValue2020, na.rm = T),
+            futureValue2100 = sum(futureValue2100, na.rm = T)) %>% 
+  ungroup() %>% 
   group_by(RCPs) %>% 
-  filter(Year > 2021) %>% 
-  summarize(rawLoss2100 = sum(avgTotalChange , na.rm = T),
-            totalLoss2020 = sum(discountValue, na.rm = T),errorlLoss2020 = totalLoss2020-sum(discountLower, na.rm = T),
-            totalLoss2100 = sum(futureValuation, na.rm = T), errorLoss2100 = totalLoss2100-sum(futureValuationLower, na.rm = T))
+  summarize(meanTotalDiscount = mean(totaldiscount2020), errorDiscount = se(totaldiscount2020),
+            meanFutureValue = mean(futureValue2100), errorFutureValue = se(futureValue2100))
+write.csv(econsOut, "discountingCumulativeSum.csv", row.names=FALSE)
+

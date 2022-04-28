@@ -123,6 +123,10 @@ durationPlot <- ggplot(summarizedRollingDuration %>%  filter(timeline == "future
   annotate(geom = "text", x = 2050, y = 3, label = paste0("Ice duration ", baselineDuration, " days"), size = 6)
 durationPlot
 
+## year end change
+durationChange <- avgPoints %>% filter(year > 2069) %>% 
+  group_by(RCPmodels) %>% summarize(meanChange = mean(avgDurationChange), error = se(avgDurationChange))
+durationChange
 
 ###### Ice area
 
@@ -181,6 +185,8 @@ areaPlot
 
 gridExtra::grid.arrange(durationPlot, areaPlot, ncol = 2 )
 
+## year end change
+avgPoints %>% filter(year > 2098)
 
 ######### Economic change
 source("scripts/economicDataLocations.r") ## load functions to get ice data for economic regions
@@ -256,7 +262,7 @@ yieldPlot <- ggplot(yieldsAverage, aes(x= Year, y= avgYield)) +
   geom_line() +  theme_classic() +
   geom_ribbon(aes(ymin = avgYield - errorYield, ymax = avgYield + errorYield), alpha= 0.3) +
   theme(text = element_text(size = 20)) +
-  ylab("Annual yield")  + xlab("")
+  ylab("Annual yield")  + xlab("")  + xlim(2022,2100)
 yieldPlot
 
 names(discount) <- paste0("Seed", 1:100)
@@ -272,11 +278,11 @@ discountAverage <- discountLong %>%
 discountPlot <- ggplot(discountAverage, aes(x= Year, y= avgDiscount)) +
   geom_line() +  theme_classic() +
   geom_ribbon(aes(ymin = avgDiscount - errorDiscount, ymax = avgDiscount + errorDiscount), alpha= 0.3) +
-  theme(text = element_text(size = 20)) +
+  theme(text = element_text(size = 20)) + xlim(2022,2100) +
   ylab("Discount rate")  + xlab("")
 discountPlot
 
-gridExtra::grid.arrange(yieldPlot, discountPlot, ncol = 2)
+gridExtra::grid.arrange(discountPlot, yieldPlot,  ncol = 2)
 
 ## join economic data with lake ice
 econs <- economicReduced[,c("Region","economicValue")] %>% filter(Region != "Heilonngjiang Province") ## link no longer available
@@ -316,17 +322,36 @@ econPlot <- ggplot(econsChangeError, aes(x = Year, y= avgRollingChange, fill = R
 econPlot
 
 ## Future total change
-econsOut <- econsChangeError %>% 
+econsOutAveragedSeed <- econsChangeError %>% 
   dplyr::select(Year, RCPs, avgTotalChange) %>% 
   left_join(discountLong) %>% 
   mutate(discountValue2020 = avgTotalChange * discount,
          futureValue2100 = avgTotalChange / discount) %>% 
-  group_by(RCPs, Seed) %>% 
-  summarize(totaldiscount2020 = sum(discountValue2020, na.rm = T),
-            futureValue2100 = sum(futureValue2100, na.rm = T)) %>% 
+  group_by(Year, RCPs) %>% 
+  summarize(discountValue2020 = mean(discountValue2020, na.rm=T),
+            futureValue2100 = mean(futureValue2100, na.rm=T))
+econsOut2100 <- econsOutAveragedSeed %>% filter(Year > 2020) %>% 
   ungroup() %>% 
   group_by(RCPs) %>% 
-  summarize(meanTotalDiscount = mean(totaldiscount2020), errorDiscount = se(totaldiscount2020),
-            meanFutureValue = mean(futureValue2100), errorFutureValue = se(futureValue2100))
-write.csv(econsOut, "discountingCumulativeSum.csv", row.names=FALSE)
+  mutate(totaldiscount2020 = sum(discountValue2020, na.rm = T),
+            totalFuture2020 = sum(futureValue2100, na.rm = T)) %>% 
+  filter(Year > 2069) %>% 
+  summarize(meanDiscount = mean(discountValue2020, na.rm=T), errorDiscount = se(discountValue2020),
+            meanFuture = mean(futureValue2100, na.rm=T), errorFuture = se(futureValue2100),
+            totaldiscount2020 = unique(totaldiscount2020), futureValue2100 = unique(totalFuture2020))
+write.csv(econsOut2100, "discountingCumulativeSum.csv", row.names=FALSE)
+  
+
+### Summarized change
+endChange <- econsChangeError %>%  
+  ungroup() %>% 
+  filter(Year > 2069) %>% 
+  group_by(RCPs) %>% 
+  summarize(avgChange = mean(avgTotalChange ), errorChange = se(avgTotalChange )) 
+endChange
+
+econsChangeError %>% 
+  filter(Year > 2020) %>% 
+  group_by(RCPs) %>% 
+  summarize(sumChange = sum(avgTotalChange))
 
